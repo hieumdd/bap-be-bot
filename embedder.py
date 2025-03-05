@@ -61,8 +61,6 @@ class MigrationInput(StatelessSourcePartition):
                 "from": message["from"],
             }
             rows.append(row)
-        df = pd.DataFrame(rows)
-        df = df.sort_values("timestamp")
         self.is_done = True
         return rows
 
@@ -85,8 +83,6 @@ class RedisInput(StatelessSourcePartition):
 
     def next_batch(self):
         logger.debug(f"Getting data from Redis with key {self.key}")
-        # count = REDIS_CLIENT.llen(self.key)
-        # messages_bytes = REDIS_CLIENT.lpop(self.key, count)
         messages_bytes = REDIS_CLIENT.lrange(self.key, 0, -1)
         if not messages_bytes:
             return []
