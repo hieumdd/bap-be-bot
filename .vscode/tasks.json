@@ -1,0 +1,22 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "docker:build",
+			"type": "shell",
+			"command": [
+				"COMMIT_HASH=$(git rev-parse --short HEAD)",
+				"docker compose build",
+			]
+		},
+		{
+			"label": "docker:push",
+			"type": "shell",
+			"command": [
+				"COMMIT_HASH=$(git rev-parse --short HEAD)",
+				"docker compose push",
+			],
+			"dependsOn": "docker:build"
+		},
+	]
+}

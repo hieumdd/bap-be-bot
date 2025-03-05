@@ -1,0 +1,26 @@
+[project]
+name = "bap-be-bot"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "bytewax>=0.21.1",
+    "chromadb>=0.6.3",
+    "langchain>=0.3.19",
+    "langchain-chroma>=0.2.2",
+    "langchain-google-genai>=2.0.11",
+    "langchain-huggingface>=0.1.2",
+    "pandas>=2.2.3",
+    "python-telegram-bot>=21.10",
+    "redis>=5.2.1",
+    "sentence-transformers>=3.4.1",
+    "torch>=2.6.0",
+    "tqdm>=4.67.1",
+]
+
+[dependency-groups]
+dev = [
+    "huggingface-hub[cli]>=0.29.1",
+    "nest-asyncio>=1.6.0",
+    "notebook>=7.3.2",
+    "ruff>=0.9.9",
+]

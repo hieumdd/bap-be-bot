@@ -1,0 +1,46 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug: Bot",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "bot.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug: Embedder Message Flow",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "bytewax.run",
+            "args": [
+                "embedder:message_flow",
+            ],
+            "env": {
+                "MIGRATION_CHAT_ID": "${input:MIGRATION_CHAT_ID}",
+                "MIGRATION_FILE_PATH": "${input:MIGRATION_FILE_PATH}",
+            },
+        },
+        {
+            "name": "Debug: Embedder Conversation Flow",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "bytewax.run",
+            "args": [
+                "embedder:conversation_flow",
+            ]
+        },
+    ],
+    "inputs": [
+        {
+            "id": "MIGRATION_CHAT_ID",
+            "description": "MIGRATION_CHAT_ID",
+            "type": "promptString",
+        },
+        {
+            "id": "MIGRATION_FILE_PATH",
+            "description": "MIGRATION_FILE_PATH",
+            "type": "promptString",
+        },
+    ]
+}

@@ -1,0 +1,60 @@
+services:
+    streaming-migrate:
+        image: hieumdd/bap-be-bot-streaming:${VERSION}
+        depends_on:
+            - redis
+        build: .
+        container_name: bap-be-bot-streaming-migrate
+        volumes:
+            - ./.chroma:/app/.chroma
+            - ./migrations:/app/migrations
+        entrypoint: ['python', '-m', 'bytewax.run', 'embedder:message_flow']
+        environment:
+            - REDIS_URL=redis://redis:6379/0
+        env_file: .env
+        networks:
+            - bap-be-bot
+
+    streaming:
+        image: hieumdd/bap-be-bot-streaming
+        depends_on:
+            - redis
+        build: .
+        container_name: bap-be-bot-streaming
+        volumes:
+            - ./.chroma:/app/.chroma
+        entrypoint: ['python', '-m', 'bytewax.run', 'embedder:conversation_flow']
+        environment:
+            - REDIS_URL=redis://redis:6379/0
+        env_file: .env
+        networks:
+            - bap-be-bot
+
+    bot:
+        image: hieumdd/bap-be-bot-bot
+        depends_on:
+            - redis
+        build: .
+        container_name: bap-be-bot-bot
+        volumes:
+            - ./.chroma:/app/.chroma
+        entrypoint: ['python', 'bot.py']
+        environment:
+            - REDIS_URL=redis://redis:6379/0
+        env_file: .env
+        networks:
+            - bap-be-bot
+    redis:
+        image: redis:7
+        restart: always
+        ports:
+            - 6379:6379
+        command: redis-server --save 20 1
+        volumes:
+            - ./redis-data:/data
+        networks:
+            - bap-be-bot
+
+networks:
+    bap-be-bot:
+        driver: bridge
