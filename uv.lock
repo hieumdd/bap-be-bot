@@ -247,6 +247,7 @@ dependencies = [
     { name = "python-telegram-bot" },
     { name = "redis" },
     { name = "sentence-transformers" },
+    { name = "tenacity" },
     { name = "torch" },
     { name = "tqdm" },
 ]
@@ -271,6 +272,7 @@ requires-dist = [
     { name = "python-telegram-bot", specifier = ">=21.10" },
     { name = "redis", specifier = ">=5.2.1" },
     { name = "sentence-transformers", specifier = ">=3.4.1" },
+    { name = "tenacity", specifier = ">=9.0.0" },
     { name = "torch", specifier = ">=2.6.0" },
     { name = "tqdm", specifier = ">=4.67.1" },
 ]

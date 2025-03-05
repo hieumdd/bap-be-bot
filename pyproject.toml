@@ -13,6 +13,7 @@ dependencies = [
     "python-telegram-bot>=21.10",
     "redis>=5.2.1",
     "sentence-transformers>=3.4.1",
+    "tenacity>=9.0.0",
     "torch>=2.6.0",
     "tqdm>=4.67.1",
 ]
