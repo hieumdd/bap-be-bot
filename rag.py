@@ -1,16 +1,14 @@
 import os
 
-import chromadb
 from langchain_core.prompts import PromptTemplate
-from langchain_chroma import Chroma
 from langchain_google_genai import GoogleGenerativeAI, HarmCategory, HarmBlockThreshold
 from langchain_huggingface import HuggingFaceEmbeddings
 
 from logger import get_logger
+from db import CHROMA_CLIENT
 
 logger = get_logger(__name__)
 
-CHROMA_CLIENT = chromadb.PersistentClient("./.chroma")
 EMBEDDING_VIETNAMESE = HuggingFaceEmbeddings(
     model_name="dangvantuan/vietnamese-embedding"
 )
