@@ -1,4 +1,6 @@
+from abc import ABC
 import asyncio
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import json
 
@@ -9,6 +11,7 @@ from bytewax.inputs import DynamicSource, StatelessSourcePartition
 from bytewax.outputs import DynamicSink, StatelessSinkPartition
 from bytewax.operators.windowing import EventClock, SessionWindower
 import pandas as pd
+from tqdm import trange
 from tqdm.asyncio import tqdm_asyncio
 
 from logger import get_logger
@@ -18,10 +21,16 @@ from rag import RAG
 logger = get_logger(__name__)
 
 
+@dataclass
+class MigrationInputOptions:
+    chat_id: str
+    file_path: str
+
+
 class MigrationInput(StatelessSourcePartition):
-    def __init__(self, chat_id: str, file_path: str):
-        self.chat_id = chat_id
-        self.file = open(file_path, "r")
+    def __init__(self, options: MigrationInputOptions):
+        self.chat_id = options.chat_id
+        self.file = open(options.file_path, "r")
         self.is_done = False
 
     def process_text(self, v: str | list[str]):
@@ -65,17 +74,30 @@ class MigrationInput(StatelessSourcePartition):
 
 
 class MigrationSource(DynamicSource):
-    def __init__(self, chat_id: str, file_path: str):
-        self.chat_id = chat_id
-        self.file_path = file_path
+    def __init__(self, options: MigrationInputOptions):
+        self.options = options
 
     def build(self, *args):
-        return MigrationInput(self.chat_id, self.file_path)
+        return MigrationInput(self.options)
+
+
+@dataclass
+class RedisIOOptions(ABC):
+    desc: str
+    key: str
+    batch_size: int = 100
+
+
+@dataclass
+class RedisInputOptions(RedisIOOptions):
+    pass
 
 
 class RedisInput(StatelessSourcePartition):
-    def __init__(self, key: str):
-        self.key = key
+    def __init__(self, options: RedisInputOptions):
+        self.key = options.key
+        self.batch_size = options.batch_size
+        self.desc = options.desc
 
     def next_batch(self):
         logger.debug("Polling from Redis")
@@ -96,17 +118,56 @@ class RedisInput(StatelessSourcePartition):
 
 
 class RedisSource(DynamicSource):
-    def __init__(self, key: str):
-        self.key = key
+    def __init__(self, options: RedisInputOptions):
+        self.options = options
 
     def build(self, *args):
-        return RedisInput(self.key)
+        return RedisInput(self.options)
+
+
+@dataclass
+class RedisOutputOptions(RedisIOOptions):
+    pass
+
+
+class RedisOutput(StatelessSinkPartition):
+    def __init__(self, options: RedisOutputOptions):
+        self.key = options.key
+        self.batch_size = options.batch_size
+        self.desc = options.desc
+        self.pipe = REDIS_CLIENT.pipeline()
+
+    def write_batch(self, items):
+        for i in trange(0, len(items), self.batch_size, desc=self.desc):
+            batch_items = items[i : i + self.batch_size]
+            self.pipe.rpush(self.key, *map(json.dumps, batch_items))
+
+    def close(self):
+        self.pipe.execute()
+
+
+class RedisSink(DynamicSink):
+    def __init__(self, options: RedisOutputOptions):
+        self.options = options
+
+    def build(self, *args):
+        return RedisOutput(self.options)
+
+
+@dataclass
+class ChromaDBOutputOptions:
+    desc: str
+    collection_name: str
+    batch_size: int = 10
+    concurrency: int = 5
 
 
 class ChromaDBOutput(StatelessSinkPartition):
-    def __init__(self, collection_name: str, batch_size=10):
-        self.vector_store = RAG.create_vector_store(collection_name)
-        self.batch_size = batch_size
+    def __init__(self, options: ChromaDBOutputOptions):
+        self.desc = options.desc
+        self.vector_store = RAG.create_vector_store(options.collection_name)
+        self.batch_size = options.batch_size
+        self.concurrency = options.concurrency
 
     def write_batch(self, rows):
 
@@ -127,48 +188,24 @@ class ChromaDBOutput(StatelessSinkPartition):
                 asyncio.create_task(upsert(rows[i : i + self.batch_size], sem))
                 for i in range(0, len(rows), self.batch_size)
             ]
-            await tqdm_asyncio.gather(*tasks, desc="Processing Batches", unit="batch")
+            await tqdm_asyncio.gather(*tasks, desc=self.desc)
 
         asyncio.run(upsert_batch())
 
 
 class ChromaDBSink(DynamicSink):
-    def __init__(self, collection_name: str, batch_size=100):
-        self.collection_name = collection_name
-        self.batch_size = batch_size
+    def __init__(self, options: ChromaDBOutputOptions):
+        self.options = options
 
     def build(self, *args):
-        return ChromaDBOutput(self.collection_name)
-
-
-class RedisOutput(StatelessSinkPartition):
-    def __init__(self, key: str):
-        self.key = key
-
-    def write_batch(self, items):
-        for item in items:
-            REDIS_CLIENT.rpush(self.key, json.dumps(item))
-
-
-class RedisSink(DynamicSink):
-    def __init__(self, key: str):
-        self.key = key
-
-    def build(self, *args):
-        return RedisOutput(self.key)
-
-
-def parse_message(message):
-    timestamp = datetime.fromtimestamp(message["timestamp"], timezone.utc)
-    return {**message, "timestamp": timestamp}
+        return ChromaDBOutput(self.options)
 
 
 def transform_to_conversation(items):
     chat_id, data = items
     _, messages = data
 
-    df = pd.DataFrame(messages).drop_duplicates()
-    df["timestamp"] = df["timestamp"].apply(lambda x: int(x.timestamp()))
+    df = pd.DataFrame(messages).drop_duplicates().sort_values("timestamp")
     df["text"] = df["from"] + ": " + df["text"]
 
     conversation_id = str(df["timestamp"].min())
@@ -186,32 +223,43 @@ message_flow = Dataflow("message")
 message_stream1 = op.input(
     "input1",
     message_flow,
-    MigrationSource("859761464", "./migrations/customer-journey.json"),
+    MigrationSource(
+        MigrationInputOptions("859761464", "./migrations/customer-journey.json")
+    ),
 )
 message_stream2 = op.input(
     "input2",
     message_flow,
-    MigrationSource("1001863500354", "./migrations/hop-lop.json"),
+    MigrationSource(
+        MigrationInputOptions("1001863500354", "./migrations/hop-lop.json")
+    ),
 )
 merged_stream = op.merge("merge", message_stream1, message_stream2)
-op.output("output", merged_stream, RedisSink("message"))
+op.output(
+    "output",
+    merged_stream,
+    RedisSink(RedisOutputOptions("Writing Messages to Redis", "message")),
+)
+
 
 conversation_flow = Dataflow("conversation")
 conversation_stream = op.input(
     "input",
     conversation_flow,
-    RedisSource("message"),
+    RedisSource(RedisInputOptions("Transfering Messages on Redis", "message")),
 )
-parsed_conversation = op.map("parse", conversation_stream, parse_message)
 keyed_conversation = op.key_on(
     "group_by_chat_id",
-    parsed_conversation,
+    conversation_stream,
     lambda x: x["chat_id"],
 )
 windowed_conversation = win.collect_window(
     "window_by_conversation_id",
     keyed_conversation,
-    EventClock(lambda x: x["timestamp"], wait_for_system_duration=timedelta(minutes=5)),
+    EventClock(
+        lambda x: datetime.fromtimestamp(x["timestamp"], timezone.utc),
+        wait_for_system_duration=timedelta(seconds=30),
+    ),
     SessionWindower(timedelta(seconds=7200)),
 )
 grouped_conversation = op.map(
@@ -219,5 +267,10 @@ grouped_conversation = op.map(
     windowed_conversation.down,
     transform_to_conversation,
 )
-# op.inspect("debug_group_by_conversation_id", grouped_conversation, inspector)
-op.output("output", grouped_conversation, ChromaDBSink("telegram"))
+op.output(
+    "output",
+    grouped_conversation,
+    ChromaDBSink(
+        ChromaDBOutputOptions("Embedding Conversations to Chroma", "telegram2")
+    ),
+)
