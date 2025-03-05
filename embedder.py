@@ -18,10 +18,6 @@ from rag import RAG
 logger = get_logger(__name__)
 
 
-def inspector(step_id: str, item: dict):
-    logger.debug(f"{step_id}: {item}")
-
-
 class MigrationInput(StatelessSourcePartition):
     def __init__(self, chat_id: str, file_path: str):
         self.chat_id = chat_id
@@ -82,12 +78,11 @@ class RedisInput(StatelessSourcePartition):
         self.key = key
 
     def next_batch(self):
-        logger.debug(f"Getting data from Redis with key {self.key}")
+        logger.debug("Polling from Redis")
         messages_bytes = REDIS_CLIENT.lrange(self.key, 0, -1)
         if not messages_bytes:
             return []
         messages = list(map(lambda x: json.loads(x.decode("utf-8")), messages_bytes))
-        logger.debug(f"Got {len(messages)} items from Redis with key {self.key}")
         return messages
 
     def next_awake(self):
