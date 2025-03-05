@@ -3,7 +3,7 @@ import os
 import chromadb
 from langchain_core.prompts import PromptTemplate
 from langchain_chroma import Chroma
-from langchain_google_genai import GoogleGenerativeAI
+from langchain_google_genai import GoogleGenerativeAI, HarmCategory, HarmBlockThreshold
 from langchain_huggingface import HuggingFaceEmbeddings
 
 from logger import get_logger
@@ -17,6 +17,13 @@ EMBEDDING_VIETNAMESE = HuggingFaceEmbeddings(
 LLM = GoogleGenerativeAI(
     model="gemini-2.0-flash-lite",
     google_api_key=os.getenv("GOOGLE_API_KEY"),
+    safety_settings={
+        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_SEXUAL: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_DANGEROUS: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY: HarmBlockThreshold.BLOCK_NONE,
+    },
 )
 
 PROMPT1 = PromptTemplate.from_template(
