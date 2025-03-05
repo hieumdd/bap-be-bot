@@ -2,7 +2,6 @@ import asyncio
 import json
 import os
 
-from httpx import NetworkError
 from telegram import Update
 from telegram.constants import ChatAction
 from telegram.ext import (
@@ -12,7 +11,7 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
-from tenacity import AsyncRetrying, retry, wait_fixed
+from tenacity import AsyncRetrying, Retrying, wait_fixed
 
 from logger import get_logger
 from db import REDIS_CLIENT
@@ -27,7 +26,6 @@ async def post_init(application: Application):
     logger.debug("Bot is running")
 
 
-@retry(wait=wait_fixed(2))
 async def queue_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.chat.id:
         return
@@ -40,10 +38,11 @@ async def queue_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "timestamp": int(message.date.timestamp()),
     }
     logger.debug(f"Push to Redis: {row}")
-    REDIS_CLIENT.rpush("message", json.dumps(row))
+    for attempt in Retrying(wait=wait_fixed(2)):
+        with attempt:
+            REDIS_CLIENT.rpush("message", json.dumps(row))
 
 
-@retry(wait=wait_fixed(2))
 async def answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.chat.id:
         return
@@ -63,8 +62,7 @@ async def answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def on_error(update: Update, context: ContextTypes.DEFAULT_TYPE):
     error = context.error
-    if isinstance(error, NetworkError):
-        return
+    logger.error(error)
 
 
 if __name__ == "__main__":
