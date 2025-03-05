@@ -9,7 +9,7 @@ ENV PATH="/root/.local/bin/:$PATH"
 
 COPY pyproject.toml uv.lock ./
 RUN uv sync --no-dev --frozen --no-install-project
-RUN /app/.venv/bin/huggingface-cli download dangvantuan/vietnamese-embedding
+RUN uv run huggingface-cli download dangvantuan/vietnamese-embedding
 
 #
 
