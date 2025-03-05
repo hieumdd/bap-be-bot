@@ -20,6 +20,11 @@ from rag import RAG
 logger = get_logger(__name__)
 
 
+async def post_init(application: Application):
+    await application.bot.set_my_commands([("query", "Query")])
+    logger.debug("Bot is running")
+
+
 async def queue_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.chat.id:
         return
@@ -51,11 +56,15 @@ async def answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 if __name__ == "__main__":
-    application = Application.builder().token(os.getenv("TELEGRAM_BOT_TOKEN")).build()
+    application = (
+        Application.builder()
+        .token(os.getenv("TELEGRAM_BOT_TOKEN"))
+        .post_init(post_init)
+        .build()
+    )
 
     text_message = filters.TEXT & ~filters.COMMAND
     application.add_handler(MessageHandler(text_message, queue_message))
     application.add_handler(CommandHandler("query", answer))
 
-    logger.debug("Bot is running")
     application.run_polling()
