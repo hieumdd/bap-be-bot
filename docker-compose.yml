@@ -1,6 +1,6 @@
 services:
     streaming-migrate:
-        image: hieumdd/bap-be-bot-streaming:${VERSION}
+        image: hieumdd/bap-be-bot
         depends_on:
             - redis
         build: .
@@ -16,7 +16,7 @@ services:
             - bap-be-bot
 
     streaming:
-        image: hieumdd/bap-be-bot-streaming
+        image: hieumdd/bap-be-bot
         depends_on:
             - redis
         build: .
@@ -31,7 +31,7 @@ services:
             - bap-be-bot
 
     bot:
-        image: hieumdd/bap-be-bot-bot
+        image: hieumdd/bap-be-bot
         depends_on:
             - redis
         build: .
