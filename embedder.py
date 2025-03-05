@@ -82,6 +82,12 @@ class RedisInput(StatelessSourcePartition):
         messages_bytes = REDIS_CLIENT.lrange(self.key, 0, -1)
         if not messages_bytes:
             return []
+        with REDIS_CLIENT.pipeline() as pipe:
+            for i in trange(0, len(messages_bytes), self.batch_size, desc=self.desc):
+                batch_messages_bytes = messages_bytes[i : i + self.batch_size]
+                pipe.rpush(f"{self.key}-cumulative", *batch_messages_bytes)
+            pipe.delete(self.key)
+            pipe.execute()
         messages = list(map(lambda x: json.loads(x.decode("utf-8")), messages_bytes))
         return messages
 
@@ -103,19 +109,22 @@ class ChromaDBOutput(StatelessSinkPartition):
         self.batch_size = batch_size
 
     def write_batch(self, rows):
-        async def upsert(batch_rows):
+
+        async def upsert(batch_rows, sem):
             try:
-                await self.vector_store.aadd_texts(
-                    texts=[x["texts"] for x in batch_rows],
-                    ids=[x["conversation_id"] for x in batch_rows],
-                    metadatas=batch_rows,
-                )
+                async with sem:
+                    await self.vector_store.aadd_texts(
+                        texts=[x["texts"] for x in batch_rows],
+                        ids=[x["conversation_id"] for x in batch_rows],
+                        metadatas=batch_rows,
+                    )
             except Exception as e:
                 logger.warning(e)
 
         async def upsert_batch():
+            sem = asyncio.Semaphore(self.concurrency)
             tasks = [
-                asyncio.create_task(upsert(rows[i : i + self.batch_size]))
+                asyncio.create_task(upsert(rows[i : i + self.batch_size], sem))
                 for i in range(0, len(rows), self.batch_size)
             ]
             await tqdm_asyncio.gather(*tasks, desc="Processing Batches", unit="batch")
