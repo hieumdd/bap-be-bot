@@ -1,11 +1,17 @@
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 import os
 
 from langchain_core.prompts import PromptTemplate
+from langchain_core.embeddings import Embeddings
+from langchain_core.vectorstores import VectorStore as LVectorStore
+from langchain_chroma.vectorstores import Chroma
 from langchain_google_genai import GoogleGenerativeAI, HarmCategory, HarmBlockThreshold
 from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_qdrant import QdrantVectorStore as Qdrant
 
 from logger import get_logger
-from db import CHROMA_CLIENT
+from db import CHROMA_CLIENT, QDRANT_CLIENT
 
 logger = get_logger(__name__)
 
@@ -63,19 +69,53 @@ PROMPT2 = PromptTemplate.from_template(
 )
 
 
-class RAG:
-    def __init__(self, llm=LLM):
-        self.vector_store = RAG.create_vector_store("telegram")
-        self.llm = llm
+@dataclass
+class VectorStore(ABC):
+    key_name: str
+    embeddings: Embeddings = field(default_factory=lambda: EMBEDDING_VIETNAMESE)
+    vector_store: LVectorStore = field(init=False)
 
-    @staticmethod
-    def create_vector_store(collection_name: str, embeddings=EMBEDDING_VIETNAMESE):
-        return Chroma(
+    @abstractmethod
+    def id_encoder(self, id):
+        pass
+
+    async def upsert(self, rows):
+        await self.vector_store.aadd_texts(
+            texts=[x["texts"] for x in rows],
+            ids=[self.id_encoder(x["conversation_id"]) for x in rows],
+            metadatas=rows,
+        )
+
+
+class ChromaVectorStore(VectorStore):
+    def __post_init__(self):
+        self.vector_store = Chroma(
             client=CHROMA_CLIENT,
-            embedding_function=embeddings,
-            collection_name=collection_name,
+            embedding_function=self.embeddings,
+            collection_name=self.key_name,
             collection_metadata={"hnsw:space": "cosine"},
         )
+
+    def id_encoder(self, id):
+        return str(id)
+
+
+class QdrantVectorStore(VectorStore):
+    def __post_init__(self):
+        self.vector_store = Qdrant(
+            client=QDRANT_CLIENT,
+            embedding=self.embeddings,
+            collection_name=self.key_name,
+        )
+
+    def id_encoder(self, id):
+        return int(id)
+
+
+class RAG:
+    def __init__(self, embeddings: Embeddings = EMBEDDING_VIETNAMESE, llm=LLM):
+        self.vector_store = QdrantVectorStore("telegram", embeddings)
+        self.llm = llm
 
     async def search(self, query: str, k=15):
         documents = await self.vector_store.asimilarity_search(query, k)

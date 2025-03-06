@@ -16,7 +16,7 @@ from tqdm.asyncio import tqdm_asyncio
 
 from logger import get_logger
 from db import REDIS_CLIENT
-from rag import RAG
+from rag import QdrantVectorStore
 
 logger = get_logger(__name__)
 
@@ -155,17 +155,17 @@ class RedisSink(DynamicSink):
 
 
 @dataclass
-class ChromaDBOutputOptions:
+class VectorStoreOutputOptions:
     desc: str
-    collection_name: str
+    key_name: str
     batch_size: int = 10
     concurrency: int = 5
 
 
-class ChromaDBOutput(StatelessSinkPartition):
-    def __init__(self, options: ChromaDBOutputOptions):
+class VectorStoreOutput(StatelessSinkPartition):
+    def __init__(self, options: VectorStoreOutputOptions):
         self.desc = options.desc
-        self.vector_store = RAG.create_vector_store(options.collection_name)
+        self.vector_store = QdrantVectorStore(options.key_name)
         self.batch_size = options.batch_size
         self.concurrency = options.concurrency
 
@@ -174,11 +174,7 @@ class ChromaDBOutput(StatelessSinkPartition):
         async def upsert(batch_rows, sem):
             try:
                 async with sem:
-                    await self.vector_store.aadd_texts(
-                        texts=[x["texts"] for x in batch_rows],
-                        ids=[x["conversation_id"] for x in batch_rows],
-                        metadatas=batch_rows,
-                    )
+                    await self.vector_store.upsert(batch_rows)
             except Exception as e:
                 logger.warning(e)
 
@@ -193,12 +189,12 @@ class ChromaDBOutput(StatelessSinkPartition):
         asyncio.run(upsert_batch())
 
 
-class ChromaDBSink(DynamicSink):
-    def __init__(self, options: ChromaDBOutputOptions):
+class VectorStoreSink(DynamicSink):
+    def __init__(self, options: VectorStoreOutputOptions):
         self.options = options
 
     def build(self, *args):
-        return ChromaDBOutput(self.options)
+        return VectorStoreOutput(self.options)
 
 
 def transform_to_conversation(items):
@@ -270,7 +266,7 @@ grouped_conversation = op.map(
 op.output(
     "output",
     grouped_conversation,
-    ChromaDBSink(
-        ChromaDBOutputOptions("Embedding Conversations to Chroma", "telegram")
+    VectorStoreSink(
+        VectorStoreOutputOptions("Embedding Conversations to Chroma", "telegram")
     ),
 )

@@ -48,6 +48,7 @@ async def answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if not context.args:
         await update.message.reply_text("Empty Query")
+        return
     await update.message.reply_chat_action(ChatAction.TYPING)
     query = " ".join(context.args)
     embeddings = RAG()

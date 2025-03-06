@@ -216,6 +216,7 @@ target/
 dbt_packages/
 logs/
 
-redis-data
 .chroma
+qdrant-data
+redis-data
 *.ipynb
