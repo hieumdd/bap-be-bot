@@ -271,6 +271,6 @@ op.output(
     "output",
     grouped_conversation,
     ChromaDBSink(
-        ChromaDBOutputOptions("Embedding Conversations to Chroma", "telegram2")
+        ChromaDBOutputOptions("Embedding Conversations to Chroma", "telegram")
     ),
 )
