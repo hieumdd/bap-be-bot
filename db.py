@@ -1,9 +1,12 @@
-import os
-
 import chromadb
+from dependency_injector import containers, providers
 from qdrant_client import QdrantClient
 import redis
 
-CHROMA_CLIENT = chromadb.PersistentClient("./.chroma")
-QDRANT_CLIENT = QdrantClient(url=os.getenv("QDRANT_URL"))
-REDIS_CLIENT = redis.Redis.from_url(os.getenv("REDIS_URL"))
+
+class DB(containers.DeclarativeContainer):
+    config = providers.Configuration()
+
+    chroma = providers.Singleton(chromadb.PersistentClient, path="./.chroma")
+    qdrant = providers.Singleton(QdrantClient, url=config.qdrant_url)
+    redis = providers.Singleton(redis.Redis.from_url, url=config.redis_url)

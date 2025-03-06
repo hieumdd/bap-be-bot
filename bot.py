@@ -1,7 +1,7 @@
 import asyncio
 import json
-import os
 
+from dependency_injector.wiring import Provide, inject
 from telegram import Update
 from telegram.constants import ChatAction
 from telegram.ext import (
@@ -14,19 +14,29 @@ from telegram.ext import (
 from tenacity import AsyncRetrying, Retrying, wait_fixed
 
 from logger import get_logger
-from db import REDIS_CLIENT
+from container import Container
 from rag import RAG
 
 
 logger = get_logger(__name__)
 
 
-async def post_init(application: Application):
-    await application.bot.set_my_commands([("query", "Query")])
-    logger.debug("Bot is running")
+@inject
+def build_application(token: str = Provide[Container.config.telegram_bot_token]):
+    async def post_init(application: Application):
+        await application.bot.set_my_commands([("query", "Query")])
+        logger.debug("Bot is running")
+
+    application = Application.builder().token(token).post_init(post_init).build()
+    return application
 
 
-async def queue_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+@inject
+async def queue_message(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    redis=Provide[Container.db.redis],
+):
     if not update.message or not update.message.chat.id:
         return
     message = update.message
@@ -40,10 +50,15 @@ async def queue_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.debug(f"Push to Redis: {row}")
     for attempt in Retrying(wait=wait_fixed(2)):
         with attempt:
-            REDIS_CLIENT.rpush("message", json.dumps(row))
+            redis.rpush("message", json.dumps(row))
 
 
-async def answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
+@inject
+async def answer(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    rag: RAG = Provide[Container.rag],
+):
     if not update.message or not update.message.chat.id:
         return
     if not context.args:
@@ -51,8 +66,7 @@ async def answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await update.message.reply_chat_action(ChatAction.TYPING)
     query = " ".join(context.args)
-    embeddings = RAG()
-    response = await embeddings.answer(query)
+    response = await rag.answer(query)
     for text in response.split("\n\n"):
         async for attempt in AsyncRetrying(wait=wait_fixed(2)):
             with attempt:
@@ -67,12 +81,10 @@ async def on_error(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 if __name__ == "__main__":
-    application = (
-        Application.builder()
-        .token(os.getenv("TELEGRAM_BOT_TOKEN"))
-        .post_init(post_init)
-        .build()
-    )
+    container = Container()
+    container.wire(modules=[__name__])
+
+    application = build_application()
 
     text_message = filters.TEXT & ~filters.COMMAND
     application.add_handler(MessageHandler(text_message, queue_message))
