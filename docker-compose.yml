@@ -65,6 +65,11 @@ services:
         networks:
             - bap-be-bot
 
+    watchtower:
+        image: containrrr/watchtower
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+
 networks:
     bap-be-bot:
         driver: bridge
