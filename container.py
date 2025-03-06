@@ -21,7 +21,6 @@ class Settings(BaseSettings):
     database_key: str = "message"
     vectorstore_key: str = "conversation"
     embedding: str = "multilingual_e5_large"
-    vectorstore: str = "qdrant"
 
 
 class Container(containers.DeclarativeContainer):
@@ -38,7 +37,7 @@ class Container(containers.DeclarativeContainer):
         db=db,
         embedding=embedding,
     )
-    vectorstore = vectorstore_package.vectorstore
+    vectorstore = vectorstore_package.qdrant
 
     llm_container = providers.Container(LLM, config=config)
     llm = llm_container.gemini_20_flash_lite

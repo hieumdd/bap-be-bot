@@ -1,3 +1,7 @@
+x-environment: &environment
+    - QDRANT_URL=http://qdrant:6333
+    - REDIS_URL=redis://redis:6379/0
+
 services:
     streaming-migrate:
         image: hieumdd/bap-be-bot
@@ -8,9 +12,7 @@ services:
         volumes:
             - ./migrations:/app/migrations
         entrypoint: ['python', '-m', 'bytewax.run', 'streaming:migrate']
-        environment:
-            - QDRANT_URL=http://qdrant:6333
-            - REDIS_URL=redis://redis:6379/0
+        environment: *environment
         env_file: .env
         networks:
             - bap-be-bot
@@ -19,12 +21,11 @@ services:
         image: hieumdd/bap-be-bot
         depends_on:
             - redis
+            - qdrant
         build: .
         container_name: bap-be-bot-streaming-embed
         entrypoint: ['python', '-m', 'bytewax.run', 'streaming:embed']
-        environment:
-            - QDRANT_URL=http://qdrant:6333
-            - REDIS_URL=redis://redis:6379/0
+        environment: *environment
         env_file: .env
         networks:
             - bap-be-bot
@@ -33,12 +34,11 @@ services:
         image: hieumdd/bap-be-bot
         depends_on:
             - redis
+            - qdrant
         build: .
         container_name: bap-be-bot-bot
         entrypoint: ['python', 'bot.py']
-        environment:
-            - QDRANT_URL=http://qdrant:6333
-            - REDIS_URL=redis://redis:6379/0
+        environment: *environment
         env_file: .env
         networks:
             - bap-be-bot

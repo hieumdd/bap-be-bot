@@ -212,11 +212,7 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-target/
-dbt_packages/
-logs/
-
-.chroma
 qdrant-data
 redis-data
+migrations
 *.ipynb
