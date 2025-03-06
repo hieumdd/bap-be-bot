@@ -188,20 +188,15 @@ class VectorStoreOutput(StatelessSinkPartition):
 
     def write_batch(self, rows: list[dict]):
 
-        async def upsert(batch_rows: list[dict], sem: asyncio.Semaphore):
-            try:
-                async with sem:
-                    await self.vectorstore.upsert(batch_rows)
-            except Exception as e:
-                logger.warning(e)
-
         async def upsert_batch():
-            sem = asyncio.Semaphore(self.concurrency)
-            tasks = [
-                asyncio.create_task(upsert(rows[i : i + self.batch_size], sem))
-                for i in range(0, len(rows), self.batch_size)
-            ]
-            await tqdm_asyncio.gather(*tasks, desc=self.desc)
+            tasks = []
+            for i in range(0, len(rows), self.batch_size):
+                coro = self.vectorstore.upsert(rows[i : i + self.batch_size])
+                tasks.append(asyncio.create_task(coro))
+                if len(tasks) * self.batch_size % 25 == 0:
+                    await asyncio.sleep(1)
+            for task in tqdm_asyncio.as_completed(tasks, desc=self.desc):
+                await task
 
         asyncio.run(upsert_batch())
 
