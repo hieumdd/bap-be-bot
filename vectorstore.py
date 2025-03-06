@@ -11,7 +11,7 @@ from logger import get_logger
 logger = get_logger(__name__)
 
 
-class CustomVectorStore(ABC, VectorStore):
+class CustomVectorStore(VectorStore, ABC):
     @abstractmethod
     def id_encoder(self, id):
         pass
