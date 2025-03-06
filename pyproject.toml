@@ -12,6 +12,8 @@ dependencies = [
     "langchain-huggingface>=0.1.2",
     "langchain-qdrant>=0.2.0",
     "pandas>=2.2.3",
+    "pydantic-settings>=2.8.1",
+    "pytest-dotenv>=0.5.2",
     "python-telegram-bot>=21.10",
     "redis>=5.2.1",
     "sentence-transformers>=3.4.1",
@@ -25,6 +27,7 @@ dev = [
     "huggingface-hub[cli]>=0.29.1",
     "nest-asyncio>=1.6.0",
     "notebook>=7.3.2",
+    "pytest>=8.3.5",
     "ruff>=0.9.9",
 ]
 
@@ -35,3 +38,7 @@ explicit = true
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cpu" }]
+
+[tool.pytest.ini_options]
+addopts = "-s --durations=0"
+python_files = ["*_test.py"]

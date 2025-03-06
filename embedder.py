@@ -10,13 +10,15 @@ from bytewax.dataflow import Dataflow
 from bytewax.inputs import DynamicSource, StatelessSourcePartition
 from bytewax.outputs import DynamicSink, StatelessSinkPartition
 from bytewax.operators.windowing import EventClock, SessionWindower
+from dependency_injector.wiring import Provide, inject
 import pandas as pd
+from redis import Redis
 from tqdm import trange
 from tqdm.asyncio import tqdm_asyncio
 
 from logger import get_logger
-from db import REDIS_CLIENT
-from rag import QdrantVectorStore
+from container import Container
+from vectorstore import CustomVectorStore
 
 logger = get_logger(__name__)
 
@@ -84,7 +86,6 @@ class MigrationSource(DynamicSource):
 @dataclass
 class RedisIOOptions(ABC):
     desc: str
-    key: str
     batch_size: int = 100
 
 
@@ -95,20 +96,24 @@ class RedisInputOptions(RedisIOOptions):
 
 class RedisInput(StatelessSourcePartition):
     def __init__(self, options: RedisInputOptions):
-        self.key = options.key
         self.batch_size = options.batch_size
         self.desc = options.desc
 
-    def next_batch(self):
+    @inject
+    def next_batch(
+        self,
+        key: str = Provide[Container.config.database_key],
+        redis: Redis = Provide[Container.db.redis],
+    ):
         logger.debug("Polling from Redis")
-        messages_bytes = REDIS_CLIENT.lrange(self.key, 0, -1)
+        messages_bytes = redis.lrange(key, 0, -1)
         if not messages_bytes:
             return []
-        with REDIS_CLIENT.pipeline() as pipe:
+        with redis.pipeline() as pipe:
             for i in trange(0, len(messages_bytes), self.batch_size, desc=self.desc):
                 batch_messages_bytes = messages_bytes[i : i + self.batch_size]
-                pipe.rpush(f"{self.key}-cumulative", *batch_messages_bytes)
-            pipe.delete(self.key)
+                pipe.rpush(f"{key}-cumulative", *batch_messages_bytes)
+            pipe.delete(key)
             pipe.execute()
         messages = list(map(lambda x: json.loads(x.decode("utf-8")), messages_bytes))
         return messages
@@ -131,16 +136,24 @@ class RedisOutputOptions(RedisIOOptions):
 
 
 class RedisOutput(StatelessSinkPartition):
-    def __init__(self, options: RedisOutputOptions):
-        self.key = options.key
+    @inject
+    def __init__(
+        self,
+        options: RedisOutputOptions,
+        redis: Redis = Provide[Container.db.redis],
+    ):
         self.batch_size = options.batch_size
         self.desc = options.desc
-        self.pipe = REDIS_CLIENT.pipeline()
+        self.pipe = redis.pipeline()
 
-    def write_batch(self, items):
+    def write_batch(
+        self,
+        items: list[dict],
+        key: str = Provide[Container.config.database_key],
+    ):
         for i in trange(0, len(items), self.batch_size, desc=self.desc):
             batch_items = items[i : i + self.batch_size]
-            self.pipe.rpush(self.key, *map(json.dumps, batch_items))
+            self.pipe.rpush(key, *map(json.dumps, batch_items))
 
     def close(self):
         self.pipe.execute()
@@ -157,24 +170,28 @@ class RedisSink(DynamicSink):
 @dataclass
 class VectorStoreOutputOptions:
     desc: str
-    key_name: str
     batch_size: int = 10
     concurrency: int = 5
 
 
 class VectorStoreOutput(StatelessSinkPartition):
-    def __init__(self, options: VectorStoreOutputOptions):
+    @inject
+    def __init__(
+        self,
+        options: VectorStoreOutputOptions,
+        vectorstore: CustomVectorStore = Provide[Container.vectorstore],
+    ):
         self.desc = options.desc
-        self.vector_store = QdrantVectorStore(options.key_name)
         self.batch_size = options.batch_size
         self.concurrency = options.concurrency
+        self.vectorstore = vectorstore
 
-    def write_batch(self, rows):
+    def write_batch(self, rows: list[dict]):
 
-        async def upsert(batch_rows, sem):
+        async def upsert(batch_rows: list[dict], sem: asyncio.Semaphore):
             try:
                 async with sem:
-                    await self.vector_store.upsert(batch_rows)
+                    await self.vectorstore.upsert(batch_rows)
             except Exception as e:
                 logger.warning(e)
 
@@ -197,7 +214,7 @@ class VectorStoreSink(DynamicSink):
         return VectorStoreOutput(self.options)
 
 
-def transform_to_conversation(items):
+def transform_to_conversation(items: tuple[str, tuple[str, list[dict]]]):
     chat_id, data = items
     _, messages = data
 
@@ -214,6 +231,9 @@ def transform_to_conversation(items):
     }
     return conversation
 
+
+container = Container()
+container.wire(modules=[__name__])
 
 message_flow = Dataflow("message")
 message_stream1 = op.input(
@@ -234,7 +254,7 @@ merged_stream = op.merge("merge", message_stream1, message_stream2)
 op.output(
     "output",
     merged_stream,
-    RedisSink(RedisOutputOptions("Writing Messages to Redis", "message")),
+    RedisSink(RedisOutputOptions("Writing Messages to Redis")),
 )
 
 
@@ -242,7 +262,7 @@ conversation_flow = Dataflow("conversation")
 conversation_stream = op.input(
     "input",
     conversation_flow,
-    RedisSource(RedisInputOptions("Transfering Messages on Redis", "message")),
+    RedisSource(RedisInputOptions("Transfering Messages on Redis")),
 )
 keyed_conversation = op.key_on(
     "group_by_chat_id",
@@ -267,6 +287,6 @@ op.output(
     "output",
     grouped_conversation,
     VectorStoreSink(
-        VectorStoreOutputOptions("Embedding Conversations to Chroma", "telegram")
+        VectorStoreOutputOptions("Upserting Conversations to Vector Store")
     ),
 )
