@@ -22,11 +22,7 @@ class RAG:
     async def answer(self, query: str):
         results = await self.search(query)
         conversations = map(
-            lambda c: f"""
-            <CONVERSATION>
-            {c}
-            </CONVERSATION>
-            """,
+            lambda c: f"""<CONVERSATION>{c}</CONVERSATION>""",
             results,
         )
         context = "\n".join(conversations)
