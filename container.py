@@ -15,11 +15,12 @@ class Settings(BaseSettings):
     qdrant_url: str
     redis_url: str
     google_api_key: str
+    pinecone_api_key: str
     telegram_bot_token: str
 
     database_key: str = "message"
-    vectorstore_key: str = "telegram"
-    embedding: str = "gemini"
+    vectorstore_key: str = "conversation"
+    embedding: str = "multilingual_e5_large"
     vectorstore: str = "qdrant"
 
 

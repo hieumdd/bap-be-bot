@@ -15,7 +15,7 @@ class RAG:
     llm: BaseLLM
     prompt: PromptTemplate
 
-    async def search(self, query: str, k=15):
+    async def search(self, query: str, k=10):
         documents = await self.vectorstore.asimilarity_search(query, k)
         return map(lambda d: d.page_content, documents)
 

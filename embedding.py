@@ -1,6 +1,7 @@
 from dependency_injector import containers, providers
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_pinecone import PineconeEmbeddings
 
 from logger import get_logger
 
@@ -19,7 +20,18 @@ class Embedding(containers.DeclarativeContainer):
         model="models/text-embedding-004",
         google_api_key=config.google_api_key,
     )
-    embedding = providers.Selector(config.embedding, hf=hf, gemini=gemini)
+    multilingual_e5_large = providers.Singleton(
+        PineconeEmbeddings,
+        model="multilingual-e5-large",
+        pinecone_api_key=config.pinecone_api_key,
+    )
+
+    embedding = providers.Selector(
+        config.embedding,
+        hf=hf,
+        gemini=gemini,
+        multilingual_e5_large=multilingual_e5_large,
+    )
 
 
 def get_embedding_vietnamese():

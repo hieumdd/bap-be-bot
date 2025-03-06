@@ -10,6 +10,7 @@ dependencies = [
     "langchain-chroma>=0.2.2",
     "langchain-google-genai>=2.0.11",
     "langchain-huggingface>=0.1.2",
+    "langchain-pinecone>=0.2.3",
     "langchain-qdrant>=0.2.0",
     "pandas>=2.2.3",
     "pydantic-settings>=2.8.1",
