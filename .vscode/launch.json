@@ -9,18 +9,18 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "Debug: Embedder Message Flow",
+            "name": "Debug: Streaming Migrate",
             "type": "debugpy",
             "request": "launch",
             "module": "bytewax.run",
-            "args": "embedder:message_flow",
+            "args": "streaming:migrate",
         },
         {
-            "name": "Debug: Embedder Conversation Flow",
+            "name": "Debug: Streaming Embed",
             "type": "debugpy",
             "request": "launch",
             "module": "bytewax.run",
-            "args": "embedder:conversation_flow",
+            "args": "streaming:embed",
         },
     ],
 }

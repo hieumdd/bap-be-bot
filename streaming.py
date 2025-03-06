@@ -235,17 +235,17 @@ def transform_to_conversation(items: tuple[str, tuple[str, list[dict]]]):
 container = Container()
 container.wire(modules=[__name__])
 
-message_flow = Dataflow("message")
+migrate = Dataflow("message")
 message_stream1 = op.input(
     "input1",
-    message_flow,
+    migrate,
     MigrationSource(
         MigrationInputOptions("859761464", "./migrations/customer-journey.json")
     ),
 )
 message_stream2 = op.input(
     "input2",
-    message_flow,
+    migrate,
     MigrationSource(
         MigrationInputOptions("1001863500354", "./migrations/hop-lop.json")
     ),
@@ -258,10 +258,10 @@ op.output(
 )
 
 
-conversation_flow = Dataflow("conversation")
+embed = Dataflow("conversation")
 conversation_stream = op.input(
     "input",
-    conversation_flow,
+    embed,
     RedisSource(RedisInputOptions("Transfering Messages on Redis")),
 )
 keyed_conversation = op.key_on(
