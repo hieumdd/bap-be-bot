@@ -4,6 +4,7 @@ x-environment: &environment
 
 services:
     streaming-migrate:
+        platform: ${PLATFORM:-linux/arm64}
         image: hieumdd/bap-be-bot
         depends_on:
             - redis
@@ -18,6 +19,7 @@ services:
             - bap-be-bot
 
     streaming-embed:
+        platform: ${PLATFORM:-linux/arm64}
         image: hieumdd/bap-be-bot
         depends_on:
             - redis
@@ -31,6 +33,7 @@ services:
             - bap-be-bot
 
     bot:
+        platform: ${PLATFORM:-linux/arm64}
         image: hieumdd/bap-be-bot
         depends_on:
             - redis
