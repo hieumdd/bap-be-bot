@@ -2,6 +2,7 @@ from dependency_injector import containers, providers
 from langchain_core.embeddings import Embeddings as IEmbeddings
 from langchain_core.language_models import BaseLLM as ILLM
 from langchain_core.prompts import PromptTemplate as IPromptTemplate
+from langchain_core.retrievers import BaseRetriever as IRetriever
 from langchain_core.vectorstores import VectorStore as IVectorStore
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -23,8 +24,10 @@ class Settings(BaseSettings):
     telegram_bot_token: str
 
     database_key: str = "message"
+    vectorstore: str = "qdrant"
     vectorstore_key: str = "conversation"
     embedding: str = "multilingual_e5_large"
+    retriever_k: int = 10
 
 
 class Container(containers.DeclarativeContainer):
@@ -41,7 +44,8 @@ class Container(containers.DeclarativeContainer):
         db=db,
         embedding=embedding,
     )
-    vectorstore: providers.Provider[IVectorStore] = vectorstore_package.qdrant
+    vectorstore: providers.Provider[IVectorStore] = vectorstore_package.vectorstore
+    retriever: providers.Provider[IRetriever] = vectorstore_package.retriever
 
     llm_container = providers.Container(LLM, config=config)
     llm: providers.Provider[ILLM] = llm_container.gemini_20_flash_lite
@@ -49,4 +53,4 @@ class Container(containers.DeclarativeContainer):
     prompt_container = providers.Container(Prompt)
     prompt: providers.Provider[IPromptTemplate] = prompt_container.conversation
 
-    rag = providers.Singleton(RAG, vectorstore=vectorstore, llm=llm, prompt=prompt)
+    rag = providers.Singleton(RAG, retriever=retriever, llm=llm, prompt=prompt)

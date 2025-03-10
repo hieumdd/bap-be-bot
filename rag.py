@@ -1,8 +1,10 @@
 from dataclasses import dataclass
 
-from langchain_core.prompts import PromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.documents import Document
 from langchain_core.language_models.llms import BaseLLM
-from langchain_core.vectorstores import VectorStore
+from langchain_core.prompts import PromptTemplate
+from langchain_core.retrievers import BaseRetriever
 
 from logger import get_logger
 
@@ -11,20 +13,19 @@ logger = get_logger(__name__)
 
 @dataclass
 class RAG:
-    vectorstore: VectorStore
+    retriever: BaseRetriever
     llm: BaseLLM
     prompt: PromptTemplate
 
-    async def search(self, query: str, k=10):
-        documents = await self.vectorstore.asimilarity_search(query, k)
-        return map(lambda d: d.page_content, documents)
-
     async def answer(self, query: str):
-        results = await self.search(query)
-        conversations = map(
-            lambda c: f"""<CONVERSATION>{c}</CONVERSATION>""",
-            results,
+        def format_docs(docs: list[Document]):
+            conversations = map(lambda c: f"""<CONVERSATION>{c}</CONVERSATION>""", docs)
+            return "\n".join(conversations)
+
+        chain = (
+            {"context": self.retriever | format_docs, "query": RunnablePassthrough()}
+            | self.prompt
+            | self.llm
         )
-        context = "\n".join(conversations)
-        response = (self.prompt | self.llm).invoke({"query": query, "context": context})
+        response = await chain.ainvoke(query)
         return response

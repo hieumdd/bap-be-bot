@@ -28,6 +28,10 @@ class QdrantVectorStore(Qdrant, CustomVectorStore):
         return int(id)
 
 
+def as_retriever(vs: VectorStore, k: int):
+    return vs.as_retriever(search_type="similarity", search_kwargs={"k": k})
+
+
 class VectorStore(containers.DeclarativeContainer):
     config = providers.Configuration()
     db = providers.DependenciesContainer()
@@ -40,3 +44,4 @@ class VectorStore(containers.DeclarativeContainer):
         collection_name=config.vectorstore_key,
     )
     vectorstore = providers.Selector(config.vectorstore, qdrant=qdrant)
+    retriever = providers.Factory(as_retriever, vs=vectorstore, k=config.retriever_k)
