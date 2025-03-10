@@ -1,4 +1,4 @@
-FROM python:3.11-slim-bookworm AS builder
+FROM python:3.12-slim-bookworm AS builder
 
 WORKDIR /app
 
@@ -12,7 +12,7 @@ RUN uv sync --no-dev --frozen --no-install-project
 
 #
 
-FROM python:3.11-slim-bookworm AS production
+FROM python:3.12-slim-bookworm AS production
 
 COPY --from=builder /app /app
 ENV PATH="/app/.venv/bin:$PATH"
