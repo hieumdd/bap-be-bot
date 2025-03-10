@@ -4,7 +4,7 @@ import json
 from dependency_injector.wiring import Provide, inject
 from redis import Redis
 from telegram import Update
-from telegram.constants import ChatAction
+from telegram.constants import ChatAction, ParseMode
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -72,8 +72,8 @@ async def answer(
         async for attempt in AsyncRetrying(wait=wait_fixed(2)):
             with attempt:
                 await update.message.reply_chat_action(ChatAction.TYPING)
+                await update.message.reply_text(text[:4096], parse_mode=ParseMode.HTML)
                 await asyncio.sleep(0.25)
-                await update.message.reply_text(text[:4096])
 
 
 async def on_error(update: Update, context: ContextTypes.DEFAULT_TYPE):

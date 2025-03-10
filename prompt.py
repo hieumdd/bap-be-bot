@@ -12,10 +12,19 @@ CONVERSATION = PromptTemplate.from_template(
     Câu hỏi: {query}
 
     Yêu cầu đối với câu trả lời:
-    - Không sử dụng định dạng markdown, nhưng có thể dùng các ký hiệu thông thường để làm nổi bật nội dung.
     - Mỗi đoạn văn không vượt quá 4096 ký tự.
     - Các gạch đầu dòng phải liên tiếp nhau không có dòng trống ở giữa.
     - Đưa ra phân tích rõ ràng dựa trên bằng chứng từ các tin nhắn.
+    - Each section should be formatted using **HTML** tags as per Telegram's [formatting options](https://core.telegram.org/bots/api#formatting-options).
+    - Use ONLY the following tags:
+        - `<b>` for **bold text**
+        - `<i>` for *italic text*
+        - `<u>` for __underlined text__
+        - `<s>` for ~~strikethrough text~~
+        - `<code>` for inline `monospace`
+        - `<pre>` for code blocks (use `<pre><code class="language">...</code></pre>` for syntax highlighting)
+        - `<a href="URL">` for hyperlinks
+        - `<blockquote>` for block quotes
     """
 )
 
