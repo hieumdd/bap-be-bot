@@ -47,6 +47,6 @@ class Container(containers.DeclarativeContainer):
     llm: providers.Provider[ILLM] = llm_container.gemini_20_flash_lite
 
     prompt_container = providers.Container(Prompt)
-    prompt: providers.Provider[IPromptTemplate] = prompt_container.conversation2
+    prompt: providers.Provider[IPromptTemplate] = prompt_container.conversation
 
     rag = providers.Singleton(RAG, vectorstore=vectorstore, llm=llm, prompt=prompt)
