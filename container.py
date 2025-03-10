@@ -1,4 +1,8 @@
 from dependency_injector import containers, providers
+from langchain_core.embeddings import Embeddings as IEmbeddings
+from langchain_core.language_models import BaseLLM as ILLM
+from langchain_core.prompts import PromptTemplate as IPromptTemplate
+from langchain_core.vectorstores import VectorStore as IVectorStore
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from db import DB
@@ -29,7 +33,7 @@ class Container(containers.DeclarativeContainer):
     db = providers.Container(DB, config=config)
 
     embedding_package = providers.Container(Embedding, config=config)
-    embedding = embedding_package.embedding
+    embedding: providers.Provider[IEmbeddings] = embedding_package.embedding
 
     vectorstore_package = providers.Container(
         VectorStore,
@@ -37,12 +41,12 @@ class Container(containers.DeclarativeContainer):
         db=db,
         embedding=embedding,
     )
-    vectorstore = vectorstore_package.qdrant
+    vectorstore: providers.Provider[IVectorStore] = vectorstore_package.qdrant
 
     llm_container = providers.Container(LLM, config=config)
-    llm = llm_container.gemini_20_flash_lite
+    llm: providers.Provider[ILLM] = llm_container.gemini_20_flash_lite
 
     prompt_container = providers.Container(Prompt)
-    prompt = prompt_container.conversation2
+    prompt: providers.Provider[IPromptTemplate] = prompt_container.conversation2
 
     rag = providers.Singleton(RAG, vectorstore=vectorstore, llm=llm, prompt=prompt)

@@ -2,6 +2,7 @@ import asyncio
 import json
 
 from dependency_injector.wiring import Provide, inject
+from redis import Redis
 from telegram import Update
 from telegram.constants import ChatAction
 from telegram.ext import (
@@ -35,7 +36,7 @@ def build_application(token: str = Provide[Container.config.telegram_bot_token])
 async def queue_message(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
-    redis=Provide[Container.db.redis],
+    redis: Redis = Provide[Container.db.redis],
 ):
     if not update.message or not update.message.chat.id:
         return
