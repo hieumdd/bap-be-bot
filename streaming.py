@@ -10,15 +10,14 @@ from bytewax.dataflow import Dataflow
 from bytewax.inputs import DynamicSource, StatelessSourcePartition
 from bytewax.outputs import DynamicSink, StatelessSinkPartition
 from bytewax.operators.windowing import EventClock, SessionWindower
-from dependency_injector.wiring import Provide, inject
 import pandas as pd
-from redis import Redis
 from tqdm import trange
 from tqdm.asyncio import tqdm_asyncio
 
 from logger import get_logger
-from container import Container
-from vectorstore import CustomVectorStore
+from config import CONFIG
+from db import REDIS_CLIENT
+from vectorstore import VECTORSTORE
 
 logger = get_logger(__name__)
 
@@ -99,21 +98,18 @@ class RedisInput(StatelessSourcePartition):
         self.batch_size = options.batch_size
         self.desc = options.desc
 
-    @inject
-    def next_batch(
-        self,
-        key: str = Provide[Container.config.database_key],
-        redis: Redis = Provide[Container.db.redis],
-    ):
+    def next_batch(self):
         logger.debug("Polling from Redis")
-        messages_bytes = redis.lrange(key, 0, -1)
+        messages_bytes = REDIS_CLIENT.lrange(CONFIG.message_repository_key, 0, -1)
         if not messages_bytes:
             return []
-        with redis.pipeline() as pipe:
+        with REDIS_CLIENT.pipeline() as pipe:
             for i in trange(0, len(messages_bytes), self.batch_size, desc=self.desc):
                 batch_messages_bytes = messages_bytes[i : i + self.batch_size]
-                pipe.rpush(f"{key}-cumulative", *batch_messages_bytes)
-            pipe.delete(key)
+                pipe.rpush(
+                    f"{CONFIG.message_repository_key}-cumulative", *batch_messages_bytes
+                )
+            pipe.delete(CONFIG.message_repository_key)
             pipe.execute()
         messages = list(map(lambda x: json.loads(x.decode("utf-8")), messages_bytes))
         return messages
@@ -136,24 +132,18 @@ class RedisOutputOptions(RedisIOOptions):
 
 
 class RedisOutput(StatelessSinkPartition):
-    @inject
-    def __init__(
-        self,
-        options: RedisOutputOptions,
-        redis: Redis = Provide[Container.db.redis],
-    ):
+    def __init__(self, options: RedisOutputOptions):
         self.batch_size = options.batch_size
         self.desc = options.desc
-        self.pipe = redis.pipeline()
+        self.pipe = REDIS_CLIENT.pipeline()
 
-    def write_batch(
-        self,
-        items: list[dict],
-        key: str = Provide[Container.config.database_key],
-    ):
+    def write_batch(self, items: list[dict]):
         for i in trange(0, len(items), self.batch_size, desc=self.desc):
             batch_items = items[i : i + self.batch_size]
-            self.pipe.rpush(key, *map(json.dumps, batch_items))
+            self.pipe.rpush(
+                CONFIG.message_repository_key,
+                *map(json.dumps, batch_items),
+            )
 
     def close(self):
         self.pipe.execute()
@@ -175,23 +165,22 @@ class VectorStoreOutputOptions:
 
 
 class VectorStoreOutput(StatelessSinkPartition):
-    @inject
-    def __init__(
-        self,
-        options: VectorStoreOutputOptions,
-        vectorstore: CustomVectorStore = Provide[Container.vectorstore],
-    ):
+    def __init__(self, options: VectorStoreOutputOptions):
         self.desc = options.desc
         self.batch_size = options.batch_size
         self.concurrency = options.concurrency
-        self.vectorstore = vectorstore
 
     def write_batch(self, rows: list[dict]):
 
         async def upsert_batch():
             tasks = []
             for i in range(0, len(rows), self.batch_size):
-                coro = self.vectorstore.upsert(rows[i : i + self.batch_size])
+                batch_rows = rows[i : i + self.batch_size]
+                coro = VECTORSTORE.aadd_texts(
+                    ids=[int(i["conversation_id"]) for i in batch_rows],
+                    texts=[i["texts"] for i in batch_rows],
+                    metadata=batch_rows,
+                )
                 tasks.append(asyncio.create_task(coro))
                 if len(tasks) * self.batch_size % 25 == 0:
                     await asyncio.sleep(1)
@@ -226,9 +215,6 @@ def transform_to_conversation(items: tuple[str, tuple[str, list[dict]]]):
     }
     return conversation
 
-
-container = Container()
-container.wire(modules=[__name__])
 
 migrate = Dataflow("message")
 message_stream1 = op.input(
