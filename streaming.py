@@ -18,13 +18,14 @@ from tqdm import trange, tqdm
 from logger import get_logger
 from vectorstore import vectorstore
 from models.message import Message, MessageRepository
+from models.conversation import Conversation
 
 logger = get_logger(__name__)
 
 
 @dataclass
 class MigrationInputOptions:
-    chat_id: str
+    chat_id: int
     file_path: str
 
 
@@ -157,21 +158,21 @@ class VectorStoreOutput(StatelessSinkPartition):
         self.delay = options.delay
         self.vectorstore = vectorstore()
 
-    def write_batch(self, rows: list[dict]):
-        sorted_rows = sorted(rows, key=lambda x: len(x["texts"]), reverse=True)
+    def write_batch(self, rows: list[Conversation]):
+        sorted_rows = sorted(rows, key=lambda x: len(x.texts), reverse=True)
         num_chunks = (len(rows) + self.batch_size - 1) // self.batch_size
-        chunks = [[] for _ in range(num_chunks)]
+        chunks: list[list[Conversation]] = [[] for _ in range(num_chunks)]
         chunk_lengths = [0] * num_chunks
 
         for row in sorted_rows:
             min_idx = chunk_lengths.index(min(chunk_lengths))
             chunks[min_idx].append(row)
-            chunk_lengths[min_idx] = chunk_lengths[min_idx] + len(row["texts"])
+            chunk_lengths[min_idx] = chunk_lengths[min_idx] + len(row.texts)
 
         for chunk in tqdm(chunks, desc=self.desc):
             self.vectorstore.add_texts(
-                ids=[int(i["conversation_id"]) for i in chunk],
-                texts=[i["texts"] for i in chunk],
+                ids=[i.id for i in chunk],
+                texts=[i.texts for i in chunk],
                 metadatas=chunk,
             )
             time.sleep(self.delay)
@@ -196,14 +197,14 @@ def transform_to_conversation(items: tuple[str, tuple[str, list[Message]]]):
     )
     df["text"] = df["from"] + ": " + df["text"]
 
-    conversation_id = str(df["timestamp"].min())
-    conversation = {
-        "chat_id": chat_id,
-        "conversation_id": conversation_id,
-        "start_timestamp": int(df["timestamp"].min()),
-        "end_timestamp": int(df["timestamp"].max()),
-        "texts": "\n".join(df["text"].astype(str).to_list()),
-    }
+    conversation_id = int(df["timestamp"].min())
+    conversation = Conversation(
+        chat_id=int(chat_id),
+        conversation_id=conversation_id,
+        start_timestamp=int(df["timestamp"].min()),
+        end_timestamp=int(df["timestamp"].max()),
+        texts="\n".join(df["text"].astype(str).to_list()),
+    )
     return conversation
 
 
@@ -212,15 +213,13 @@ message_stream1 = op.input(
     "input1",
     migrate,
     MigrationSource(
-        MigrationInputOptions("859761464", "./migrations/customer-journey.json")
+        MigrationInputOptions(859761464, "./migrations/customer-journey.json")
     ),
 )
 message_stream2 = op.input(
     "input2",
     migrate,
-    MigrationSource(
-        MigrationInputOptions("1001863500354", "./migrations/hop-lop.json")
-    ),
+    MigrationSource(MigrationInputOptions(1001863500354, "./migrations/hop-lop.json")),
 )
 merged_stream = op.merge("merge", message_stream1, message_stream2)
 op.output(
