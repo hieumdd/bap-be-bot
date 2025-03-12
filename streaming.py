@@ -1,8 +1,7 @@
-from abc import ABC
 import contextlib
-from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import json
+import pathlib
 import time
 
 import bytewax.operators as op
@@ -23,16 +22,11 @@ from models.conversation import Conversation
 logger = get_logger(__name__)
 
 
-@dataclass
-class MigrationInputOptions:
-    chat_id: int
-    file_path: str
-
-
 class MigrationInput(StatelessSourcePartition):
-    def __init__(self, options: MigrationInputOptions):
-        self.chat_id = options.chat_id
-        self.file = open(options.file_path, "r")
+    def __init__(self, file_path: str):
+        path = pathlib.Path(file_path)
+        self.chat_id = int(path.stem)
+        self.file = open(file_path, "r")
         self.is_done = False
 
     def process_text(self, v: str | list[str]):
@@ -75,26 +69,15 @@ class MigrationInput(StatelessSourcePartition):
 
 
 class MigrationSource(DynamicSource):
-    def __init__(self, options: MigrationInputOptions):
-        self.options = options
+    def __init__(self, file_path: str):
+        self.file_path = file_path
 
     def build(self, *args):
-        return MigrationInput(self.options)
-
-
-@dataclass
-class RedisIOOptions(ABC):
-    desc: str
-
-
-@dataclass
-class RedisInputOptions(RedisIOOptions):
-    pass
+        return MigrationInput(self.file_path)
 
 
 class RedisInput(StatelessSourcePartition):
-    def __init__(self, options: RedisInputOptions, repository=MessageRepository):
-        self.desc = options.desc
+    def __init__(self, repository=MessageRepository):
         self.repository = repository()
 
     def next_batch(self):
@@ -107,22 +90,15 @@ class RedisInput(StatelessSourcePartition):
 
 
 class RedisSource(DynamicSource):
-    def __init__(self, options: RedisInputOptions):
-        self.options = options
-
     def build(self, *args):
-        return RedisInput(self.options)
-
-
-@dataclass
-class RedisOutputOptions(RedisIOOptions):
-    batch_size: int = 100
+        return RedisInput()
 
 
 class RedisOutput(StatelessSinkPartition):
-    def __init__(self, options: RedisOutputOptions, repository=MessageRepository):
-        self.desc = options.desc
-        self.batch_size = options.batch_size
+    desc: str = "Writing Messages to Redis"
+    batch_size: int = 100
+
+    def __init__(self, repository=MessageRepository):
         self.repository = repository()
         self.pipe = self.repository.pipeline()
 
@@ -136,25 +112,16 @@ class RedisOutput(StatelessSinkPartition):
 
 
 class RedisSink(DynamicSink):
-    def __init__(self, options: RedisOutputOptions):
-        self.options = options
-
     def build(self, *args):
-        return RedisOutput(self.options)
-
-
-@dataclass
-class VectorStoreOutputOptions:
-    desc: str
-    batch_size: int = 64
-    delay: int = 5
+        return RedisOutput()
 
 
 class VectorStoreOutput(StatelessSinkPartition):
-    def __init__(self, options: VectorStoreOutputOptions, vectorstore=vectorstore):
-        self.desc = options.desc
-        self.batch_size = options.batch_size
-        self.delay = options.delay
+    desc: str = "Upserting Conversations to Vector Store"
+    batch_size: int = 64
+    delay: int = 5
+
+    def __init__(self, vectorstore=vectorstore):
         self.vectorstore = vectorstore()
 
     def write_batch(self, rows: list[Conversation]):
@@ -178,14 +145,15 @@ class VectorStoreOutput(StatelessSinkPartition):
 
 
 class VectorStoreSink(DynamicSink):
-    def __init__(self, options: VectorStoreOutputOptions):
-        self.options = options
-
     def build(self, *args):
-        return VectorStoreOutput(self.options)
+        return VectorStoreOutput()
 
 
-def transform_to_conversation(items: tuple[str, tuple[str, list[Message]]]):
+def sort_message(items):
+    return sorted(items, key=lambda x: x.timestamp)
+
+
+def reduce_by_conversation(items: tuple[str, tuple[str, list[Message]]]):
     chat_id, data = items
     _, messages = data
 
@@ -207,56 +175,49 @@ def transform_to_conversation(items: tuple[str, tuple[str, list[Message]]]):
     return conversation
 
 
-migrate = Dataflow("message")
-message_stream1 = op.input(
+migrate = Dataflow("migrate")
+migrate_input1 = op.input(
     "input1",
     migrate,
-    MigrationSource(
-        MigrationInputOptions(859761464, "./migrations/customer-journey.json")
-    ),
+    MigrationSource("./migrations/859761464.json"),
 )
-message_stream2 = op.input(
+migrate_input2 = op.input(
     "input2",
     migrate,
-    MigrationSource(MigrationInputOptions(1001863500354, "./migrations/hop-lop.json")),
+    MigrationSource("./migrations/1001863500354.json"),
 )
-merged_stream = op.merge("merge", message_stream1, message_stream2)
-op.output(
-    "output",
-    merged_stream,
-    RedisSink(RedisOutputOptions("Writing Messages to Redis")),
+migrate_merged = op.merge("merge", migrate_input1, migrate_input2)
+migrate_keyed = op.key_on("key", migrate_merged, lambda _: "ALL")
+migrate_folded = op.fold_final(
+    "fold",
+    migrate_keyed,
+    lambda: [],
+    lambda acc, cur: acc + [cur],
 )
+migrate_keyrm = op.key_rm("key_rm", migrate_folded)
+migrate_sorted = op.flat_map(
+    "sort",
+    migrate_keyrm,
+    lambda messages: sorted(messages, key=lambda m: m.timestamp),
+)
+op.output("output", migrate_sorted, RedisSink())
 
 
-embed = Dataflow("conversation")
-conversation_stream = op.input(
-    "input",
-    embed,
-    RedisSource(RedisInputOptions("Transfering Messages on Redis")),
-)
-keyed_conversation = op.key_on(
-    "group_by_chat_id",
-    conversation_stream,
-    lambda m: str(m.chat_id),
-)
-windowed_conversation = win.collect_window(
-    "window_by_conversation_id",
-    keyed_conversation,
+embed = Dataflow("embed")
+embed_input = op.input("input", embed, RedisSource())
+embed_keyed = op.key_on("key_on_chat_id", embed_input, lambda m: str(m.chat_id))
+embed_windowed = win.collect_window(
+    "window_by_session",
+    embed_keyed,
     EventClock(
         lambda m: datetime.fromtimestamp(m.timestamp, timezone.utc),
         wait_for_system_duration=timedelta(seconds=30),
     ),
     SessionWindower(timedelta(seconds=7200)),
 )
-grouped_conversation = op.map(
-    "group_by_conversation_id",
-    windowed_conversation.down,
-    transform_to_conversation,
+embed_reduced = op.map(
+    "reduce_by_conversation",
+    embed_windowed.down,
+    reduce_by_conversation,
 )
-op.output(
-    "output",
-    grouped_conversation,
-    VectorStoreSink(
-        VectorStoreOutputOptions("Upserting Conversations to Vector Store")
-    ),
-)
+op.output("output", embed_reduced, VectorStoreSink())
