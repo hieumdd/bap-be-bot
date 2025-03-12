@@ -85,7 +85,6 @@ class MigrationSource(DynamicSource):
 @dataclass
 class RedisIOOptions(ABC):
     desc: str
-    batch_size: int = 100
 
 
 @dataclass
@@ -117,7 +116,7 @@ class RedisSource(DynamicSource):
 
 @dataclass
 class RedisOutputOptions(RedisIOOptions):
-    pass
+    batch_size: int = 100
 
 
 class RedisOutput(StatelessSinkPartition):
