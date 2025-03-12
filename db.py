@@ -1,11 +1,19 @@
+from functools import lru_cache
+
 from qdrant_client import QdrantClient
 import redis
 
 from logger import get_logger
-from config import CONFIG
+from config import Config
 
 logger = get_logger(__name__)
 
-REDIS_CLIENT = redis.Redis.from_url(CONFIG.redis_url)
 
-QDRANT_CLIENT = QdrantClient(url=CONFIG.qdrant_url)
+@lru_cache(1)
+def redis_client(config=Config):
+    return redis.Redis.from_url(config().redis_url)
+
+
+@lru_cache(1)
+def qdrant_client(config=Config):
+    return QdrantClient(url=config().qdrant_url)
