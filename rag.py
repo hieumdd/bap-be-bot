@@ -1,4 +1,5 @@
 from functools import lru_cache
+import re
 
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.documents import Document
@@ -12,7 +13,7 @@ from vectorstore import vectorstore
 @lru_cache(1)
 def llm(config=Config):
     return GoogleGenerativeAI(
-        model="gemini-2.0-flash-lite",
+        model="gemini-2.0-flash",
         safety_settings={
             HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
             HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
@@ -40,24 +41,22 @@ def prompt():
         - Mỗi đoạn văn không vượt quá 4096 ký tự.
         - Các gạch đầu dòng phải liên tiếp nhau không có dòng trống ở giữa.
         - Đưa ra phân tích rõ ràng dựa trên bằng chứng từ các tin nhắn.
-        - Each section should be formatted using **HTML** tags as per Telegram's [formatting options](https://core.telegram.org/bots/api#formatting-options).
-        - Use ONLY the following tags:
-            - `<b>` for **bold text**
-            - `<i>` for *italic text*
-            - `<u>` for __underlined text__
-            - `<s>` for ~~strikethrough text~~
-            - `<code>` for inline `monospace`
-            - `<pre>` for code blocks (use `<pre><code class="language">...</code></pre>` for syntax highlighting)
-            - `<a href="URL">` for hyperlinks
-            - `<blockquote>` for block quotes
         """
     )
 
 
 async def answer(query: str, k=10, vectorstore=vectorstore, prompt=prompt, llm=llm):
     def format_docs(docs: list[Document]):
-        conversations = map(lambda c: f"""<CONVERSATION>{c}</CONVERSATION>""", docs)
+        conversations = map(
+            lambda c: f"<CONVERSATION>\n{c.page_content}\n</CONVERSATION>",
+            docs,
+        )
         return "\n".join(conversations)
+
+    def format_html(text: str):
+        text = re.sub(r"\*\*(.*?)\*\*|__(.*?)__", r"<b>\1\2</b>", text)
+        text = re.sub(r"\*(.*?)\*|_(.*?)_", r"<i>\1\2</i>", text)
+        return text
 
     retriever = vectorstore().as_retriever(
         search_type="similarity",
@@ -67,6 +66,7 @@ async def answer(query: str, k=10, vectorstore=vectorstore, prompt=prompt, llm=l
         {"context": retriever | format_docs, "query": RunnablePassthrough()}
         | prompt()
         | llm()
+        | format_html
     )
     response = await chain.ainvoke(query)
     return response
