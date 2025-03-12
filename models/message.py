@@ -8,9 +8,7 @@ from db import redis_client
 
 
 class Message(BaseModel):
-    model_config = ConfigDict(
-        populate_by_name=True,
-    )
+    model_config = ConfigDict(populate_by_name=True)
 
     chat_id: int
     id: int
