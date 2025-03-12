@@ -1,8 +1,8 @@
 from abc import ABC
-import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import json
+import time
 
 import bytewax.operators as op
 import bytewax.operators.windowing as win
@@ -11,8 +11,7 @@ from bytewax.inputs import DynamicSource, StatelessSourcePartition
 from bytewax.outputs import DynamicSink, StatelessSinkPartition
 from bytewax.operators.windowing import EventClock, SessionWindower
 import pandas as pd
-from tqdm import trange
-from tqdm.asyncio import tqdm_asyncio
+from tqdm import trange, tqdm
 
 from logger import get_logger
 from config import Config
@@ -86,8 +85,6 @@ class MigrationSource(DynamicSource):
 class RedisIOOptions(ABC):
     desc: str
     batch_size: int = 100
-    config = Config
-    redis_client = redis_client
 
 
 @dataclass
@@ -96,11 +93,16 @@ class RedisInputOptions(RedisIOOptions):
 
 
 class RedisInput(StatelessSourcePartition):
-    def __init__(self, options: RedisInputOptions):
+    def __init__(
+        self,
+        options: RedisInputOptions,
+        config=Config,
+        redis_client=redis_client,
+    ):
         self.desc = options.desc
         self.batch_size = options.batch_size
-        self.redis_client = options.redis_client()
-        self.key = options.config().message_repository_key
+        self.redis_client = redis_client()
+        self.key = config().message_repository_key
 
     def next_batch(self):
         logger.debug("Polling from Redis")
@@ -134,11 +136,16 @@ class RedisOutputOptions(RedisIOOptions):
 
 
 class RedisOutput(StatelessSinkPartition):
-    def __init__(self, options: RedisOutputOptions):
+    def __init__(
+        self,
+        options: RedisOutputOptions,
+        config=Config,
+        redis_client=redis_client,
+    ):
         self.desc = options.desc
         self.batch_size = options.batch_size
-        self.pipe = options.redis_client().pipeline()
-        self.key = options.config().message_repository_key
+        self.pipe = redis_client().pipeline()
+        self.key = config().message_repository_key
 
     def write_batch(self, items: list[dict]):
         for i in trange(0, len(items), self.batch_size, desc=self.desc):
@@ -160,36 +167,35 @@ class RedisSink(DynamicSink):
 @dataclass
 class VectorStoreOutputOptions:
     desc: str
-    batch_size: int = 10
-    concurrency: int = 5
-    vectorstore = vectorstore
+    batch_size: int = 64
+    delay: int = 5
 
 
 class VectorStoreOutput(StatelessSinkPartition):
-    def __init__(self, options: VectorStoreOutputOptions):
+    def __init__(self, options: VectorStoreOutputOptions, vectorstore=vectorstore):
         self.desc = options.desc
         self.batch_size = options.batch_size
-        self.concurrency = options.concurrency
-        self.vectorstore = options.vectorstore()
+        self.delay = options.delay
+        self.vectorstore = vectorstore()
 
     def write_batch(self, rows: list[dict]):
+        sorted_rows = sorted(rows, key=lambda x: len(x["texts"]), reverse=True)
+        num_chunks = (len(rows) + self.batch_size - 1) // self.batch_size
+        chunks = [[] for _ in range(num_chunks)]
+        chunk_lengths = [0] * num_chunks
 
-        async def upsert_batch():
-            tasks = []
-            for i in range(0, len(rows), self.batch_size):
-                batch_rows = rows[i : i + self.batch_size]
-                coro = self.vectorstore.aadd_texts(
-                    ids=[int(i["conversation_id"]) for i in batch_rows],
-                    texts=[i["texts"] for i in batch_rows],
-                    metadata=batch_rows,
-                )
-                tasks.append(asyncio.create_task(coro))
-                if len(tasks) * self.batch_size % 25 == 0:
-                    await asyncio.sleep(1)
-            for task in tqdm_asyncio.as_completed(tasks, desc=self.desc):
-                await task
+        for row in sorted_rows:
+            min_idx = chunk_lengths.index(min(chunk_lengths))
+            chunks[min_idx].append(row)
+            chunk_lengths[min_idx] = chunk_lengths[min_idx] + len(row["texts"])
 
-        asyncio.run(upsert_batch())
+        for chunk in tqdm(chunks, desc=self.desc):
+            self.vectorstore.add_texts(
+                ids=[int(i["conversation_id"]) for i in chunk],
+                texts=[i["texts"] for i in chunk],
+                metadatas=chunk,
+            )
+            time.sleep(self.delay)
 
 
 class VectorStoreSink(DynamicSink):
