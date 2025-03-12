@@ -55,13 +55,15 @@ def answer(rag=rag.answer):
             return
         await update.message.reply_chat_action(ChatAction.TYPING)
         query = " ".join(context.args)
+        logger.debug(f"Answering query: {query}")
         response = await rag(query)
         for text in response.split("\n\n"):
             async for attempt in AsyncRetrying(wait=wait_fixed(2)):
                 with attempt:
                     await update.message.reply_chat_action(ChatAction.TYPING)
                     await update.message.reply_text(
-                        text[:4096], parse_mode=ParseMode.HTML
+                        text[:4096],
+                        parse_mode=ParseMode.HTML,
                     )
                     await asyncio.sleep(0.25)
 
