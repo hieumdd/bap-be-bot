@@ -1,5 +1,4 @@
 import asyncio
-import json
 
 from telegram import Update
 from telegram.constants import ChatAction, ParseMode
@@ -14,7 +13,7 @@ from tenacity import AsyncRetrying, Retrying, wait_fixed
 
 from logger import get_logger
 from config import Config
-from db import redis_client
+from models.message import Message, MessageRepository
 import rag
 
 
@@ -30,22 +29,21 @@ def build_application(config=Config):
     return Application.builder().token(token).post_init(post_init).build()
 
 
-def queue_message(redis=redis_client):
+def queue_message(repository=MessageRepository):
     async def _queue_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not update.message or not update.message.chat.id:
             return
-        message = update.message
-        row = {
-            "chat_id": str(abs(update.message.chat.id)),
-            "id": message.id,
-            "from": message.from_user.full_name,
-            "text": message.text,
-            "timestamp": int(message.date.timestamp()),
-        }
-        logger.debug(f"Push to Redis: {row}")
+        message = Message(
+            chat_id=abs(update.message.chat.id),
+            id=update.message.id,
+            timestamp=int(update.message.date.timestamp()),
+            from_=update.message.from_user.full_name,
+            text=update.message.text,
+        )
+        logger.debug(f"Push to Redis: {message}")
         for attempt in Retrying(wait=wait_fixed(2)):
             with attempt:
-                redis().rpush("message", json.dumps(row))
+                repository().write(message)
 
     return _queue_message
 
