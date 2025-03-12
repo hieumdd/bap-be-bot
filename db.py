@@ -11,7 +11,7 @@ logger = get_logger(__name__)
 
 @lru_cache(1)
 def redis_client(config=Config):
-    return redis.Redis.from_url(config().redis_url)
+    return redis.Redis.from_url(config().redis_url, decode_responses=True)
 
 
 @lru_cache(1)

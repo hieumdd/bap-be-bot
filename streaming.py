@@ -1,4 +1,5 @@
 from abc import ABC
+import contextlib
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import json
@@ -11,12 +12,12 @@ from bytewax.inputs import DynamicSource, StatelessSourcePartition
 from bytewax.outputs import DynamicSink, StatelessSinkPartition
 from bytewax.operators.windowing import EventClock, SessionWindower
 import pandas as pd
+from pydantic import ValidationError
 from tqdm import trange, tqdm
 
 from logger import get_logger
-from config import Config
-from db import redis_client
 from vectorstore import vectorstore
+from models.message import Message, MessageRepository
 
 logger = get_logger(__name__)
 
@@ -51,23 +52,22 @@ class MigrationInput(StatelessSourcePartition):
             raise StopIteration()
 
         extract_data = json.load(self.file)
-        rows = []
-        for message in extract_data["messages"]:
-            if message["type"] != "message":
+        messages = []
+        for message_dict in extract_data["messages"]:
+            if message_dict["type"] != "message":
                 continue
-            text = self.process_text(message["text"])
-            if not text:
-                continue
-            row = {
-                "chat_id": self.chat_id,
-                "id": message["id"],
-                "text": text,
-                "timestamp": int(message["date_unixtime"]),
-                "from": message["from"],
-            }
-            rows.append(row)
+            text = self.process_text(message_dict["text"])
+            with contextlib.suppress(ValidationError):
+                message = Message(
+                    chat_id=self.chat_id,
+                    id=message_dict["id"],
+                    timestamp=int(message_dict["date_unixtime"]),
+                    text=text,
+                    from_=message_dict["from"],
+                )
+                messages.append(message)
         self.is_done = True
-        return rows
+        return messages
 
     def close(self):
         self.file.close()
@@ -93,29 +93,13 @@ class RedisInputOptions(RedisIOOptions):
 
 
 class RedisInput(StatelessSourcePartition):
-    def __init__(
-        self,
-        options: RedisInputOptions,
-        config=Config,
-        redis_client=redis_client,
-    ):
+    def __init__(self, options: RedisInputOptions, repository=MessageRepository):
         self.desc = options.desc
-        self.batch_size = options.batch_size
-        self.redis_client = redis_client()
-        self.key = config().message_repository_key
+        self.repository = repository()
 
     def next_batch(self):
         logger.debug("Polling from Redis")
-        messages_bytes = self.redis_client.lrange(self.key, 0, -1)
-        if not messages_bytes:
-            return []
-        with self.redis_client.pipeline() as pipe:
-            for i in trange(0, len(messages_bytes), self.batch_size, desc=self.desc):
-                batch_messages_bytes = messages_bytes[i : i + self.batch_size]
-                pipe.rpush(f"{self.key}-cumulative", *batch_messages_bytes)
-            pipe.delete(self.key)
-            pipe.execute()
-        messages = list(map(lambda x: json.loads(x.decode("utf-8")), messages_bytes))
+        messages = self.repository.read()
         return messages
 
     def next_awake(self):
@@ -136,21 +120,16 @@ class RedisOutputOptions(RedisIOOptions):
 
 
 class RedisOutput(StatelessSinkPartition):
-    def __init__(
-        self,
-        options: RedisOutputOptions,
-        config=Config,
-        redis_client=redis_client,
-    ):
+    def __init__(self, options: RedisOutputOptions, repository=MessageRepository):
         self.desc = options.desc
         self.batch_size = options.batch_size
-        self.pipe = redis_client().pipeline()
-        self.key = config().message_repository_key
+        self.repository = repository()
+        self.pipe = self.repository.pipeline()
 
-    def write_batch(self, items: list[dict]):
+    def write_batch(self, items: list[Message]):
         for i in trange(0, len(items), self.batch_size, desc=self.desc):
             batch_items = items[i : i + self.batch_size]
-            self.pipe.rpush(self.key, *map(json.dumps, batch_items))
+            self.repository.write(*batch_items, pipe=self.pipe)
 
     def close(self):
         self.pipe.execute()
@@ -206,11 +185,15 @@ class VectorStoreSink(DynamicSink):
         return VectorStoreOutput(self.options)
 
 
-def transform_to_conversation(items: tuple[str, tuple[str, list[dict]]]):
+def transform_to_conversation(items: tuple[str, tuple[str, list[Message]]]):
     chat_id, data = items
     _, messages = data
 
-    df = pd.DataFrame(messages).drop_duplicates().sort_values("timestamp")
+    df = (
+        pd.DataFrame(map(lambda m: m.model_dump(by_alias=True), messages))
+        .drop_duplicates()
+        .sort_values("timestamp")
+    )
     df["text"] = df["from"] + ": " + df["text"]
 
     conversation_id = str(df["timestamp"].min())
@@ -256,13 +239,13 @@ conversation_stream = op.input(
 keyed_conversation = op.key_on(
     "group_by_chat_id",
     conversation_stream,
-    lambda x: x["chat_id"],
+    lambda m: str(m.chat_id),
 )
 windowed_conversation = win.collect_window(
     "window_by_conversation_id",
     keyed_conversation,
     EventClock(
-        lambda x: datetime.fromtimestamp(x["timestamp"], timezone.utc),
+        lambda m: datetime.fromtimestamp(m.timestamp, timezone.utc),
         wait_for_system_duration=timedelta(seconds=30),
     ),
     SessionWindower(timedelta(seconds=7200)),
