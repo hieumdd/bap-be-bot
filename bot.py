@@ -9,7 +9,7 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
-from tenacity import AsyncRetrying, Retrying, wait_fixed
+from tenacity import AsyncRetrying, wait_fixed
 
 from logger import get_logger
 from config import Config
@@ -41,9 +41,7 @@ def queue_message(repository=MessageRepository):
             text=update.message.text,
         )
         logger.debug(f"Push to Redis: {message}")
-        for attempt in Retrying(wait=wait_fixed(2)):
-            with attempt:
-                repository().write(message)
+        repository().write(message)
 
     return _queue_message
 
