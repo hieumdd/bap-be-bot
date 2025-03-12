@@ -1,9 +1,9 @@
 from abc import ABC
-import asyncio
 import contextlib
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import json
+import time
 
 import bytewax.operators as op
 import bytewax.operators.windowing as win
@@ -13,8 +13,7 @@ from bytewax.outputs import DynamicSink, StatelessSinkPartition
 from bytewax.operators.windowing import EventClock, SessionWindower
 import pandas as pd
 from pydantic import ValidationError
-from tqdm import trange
-from tqdm.asyncio import tqdm_asyncio
+from tqdm import trange, tqdm
 
 from logger import get_logger
 from vectorstore import vectorstore
@@ -147,35 +146,35 @@ class RedisSink(DynamicSink):
 @dataclass
 class VectorStoreOutputOptions:
     desc: str
-    batch_size: int = 25
-    concurrency: int = 5
+    batch_size: int = 64
+    delay: int = 5
 
 
 class VectorStoreOutput(StatelessSinkPartition):
     def __init__(self, options: VectorStoreOutputOptions, vectorstore=vectorstore):
         self.desc = options.desc
         self.batch_size = options.batch_size
-        self.concurrency = options.concurrency
+        self.delay = options.delay
         self.vectorstore = vectorstore()
 
     def write_batch(self, rows: list[dict]):
+        sorted_rows = sorted(rows, key=lambda x: len(x["texts"]), reverse=True)
+        num_chunks = (len(rows) + self.batch_size - 1) // self.batch_size
+        chunks = [[] for _ in range(num_chunks)]
+        chunk_lengths = [0] * num_chunks
 
-        async def upsert_batch():
-            tasks = []
-            for i in range(0, len(rows), self.batch_size):
-                batch_rows = rows[i : i + self.batch_size]
-                coro = self.vectorstore.aadd_texts(
-                    ids=[int(i["conversation_id"]) for i in batch_rows],
-                    texts=[i["texts"] for i in batch_rows],
-                    metadata=batch_rows,
-                )
-                tasks.append(asyncio.create_task(coro))
-                if len(tasks) * self.batch_size % 25 == 0:
-                    await asyncio.sleep(1)
-            for task in tqdm_asyncio.as_completed(tasks, desc=self.desc):
-                await task
+        for row in sorted_rows:
+            min_idx = chunk_lengths.index(min(chunk_lengths))
+            chunks[min_idx].append(row)
+            chunk_lengths[min_idx] = chunk_lengths[min_idx] + len(row["texts"])
 
-        asyncio.run(upsert_batch())
+        for chunk in tqdm(chunks, desc=self.desc):
+            self.vectorstore.add_texts(
+                ids=[int(i["conversation_id"]) for i in chunk],
+                texts=[i["texts"] for i in chunk],
+                metadatas=chunk,
+            )
+            time.sleep(self.delay)
 
 
 class VectorStoreSink(DynamicSink):
