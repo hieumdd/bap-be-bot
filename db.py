@@ -11,9 +11,11 @@ logger = get_logger(__name__)
 
 @lru_cache(1)
 def redis_client(config=Config):
+    logger.debug("Initialized Redis")
     return redis.Redis.from_url(config().redis_url, decode_responses=True)
 
 
 @lru_cache(1)
 def qdrant_client(config=Config):
+    logger.debug("Initialized Qdrant")
     return QdrantClient(url=config().qdrant_url)

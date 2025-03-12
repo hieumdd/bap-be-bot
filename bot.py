@@ -55,7 +55,6 @@ def answer(rag=rag.answer):
             return
         await update.message.reply_chat_action(ChatAction.TYPING)
         query = " ".join(context.args)
-        logger.debug(f"Answering query: {query}")
         response = await rag(query)
         for text in response.split("\n\n"):
             async for attempt in AsyncRetrying(wait=wait_fixed(2)):
