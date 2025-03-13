@@ -1,5 +1,6 @@
 from datetime import datetime
 import re
+from textwrap import dedent
 
 from langchain.schema import AIMessage
 from langchain_core.runnables import RunnablePassthrough
@@ -36,32 +37,36 @@ chat_model = ChatGoogleGenerativeAI(
 prompt = ChatPromptTemplate.from_messages(
     [
         SystemMessagePromptTemplate.from_template(
-            """
-            You are Bot Bập Bẹ, a smart AI tasked with analyzing conversation & answering questions based on provided context. Here are multiple relevent conversations betweens friends within group chats as context.
-            Each conversation is between XML tag <CONVERSATION> and </CONVERSATION>
-            Each conversation is formatted with this structure:
-            Start: YYYY-MM-DD (Start of the conversation)
-            End: YYYY-MM-DD (End of the conversation)
-            Messages: str (Messages, each message are seperated by newline, in the form of [Sender]: [Text])
+            dedent(
+                """
+                You are Bot Bập Bẹ, a smart AI tasked with analyzing conversation & answering questions based on provided context. Here are multiple relevent conversations betweens friends within group chats as context.
+                Each conversation is between XML tag <CONVERSATION> and </CONVERSATION>
+                Each conversation is formatted with this structure:
+                Start: YYYY-MM-DD (Start of the conversation)
+                End: YYYY-MM-DD (End of the conversation)
+                Messages: str (Messages, each message are seperated by newline, in the form of [Sender]: [Text])
 
-            ### Answer Requirements
-            - Provide detailed analysis based on evidence from conversations
-            - Provide quotation or proofs
-            - ONLY ANSWER IN THE PROMPT'S LANGUAGE
+                ### Answer Requirements
+                - Provide detailed analysis based on evidence from conversations
+                - Provide quotation or proofs
+                - ONLY ANSWER IN THE PROMPT'S LANGUAGE
 
-            ### Answer Formatting Requirements
-            - Each section contains no more than 4096 character
-            - Each bullet point should be continous without empty line in between
-            """
+                ### Answer Formatting Requirements
+                - Each section contains no more than 4096 character
+                - Each bullet point should be continous without empty line in between
+                """
+            )
         ),
         HumanMessagePromptTemplate.from_template(
-            """
-            ### Provided Conversations:
-            {context}
+            dedent(
+                """
+                ### Provided Conversations:
+                {context}
 
-            ### Prompt:
-            {query}
-            """
+                ### Prompt:
+                {query}
+                """
+            )
         ),
     ]
 )
@@ -70,12 +75,15 @@ prompt = ChatPromptTemplate.from_messages(
 async def answer(query: str, k=10, lambda_mult=0.3):
     def format_docs(docs: list[Document]):
         conversations = [
-            f"""<CONVERSATION>
-            Start: {datetime.fromtimestamp(c.metadata["start_timestamp"]).strftime("%Y-%m-%d")}
-            End: {datetime.fromtimestamp(c.metadata["end_timestamp"]).strftime("%Y-%m-%d")}
-            Messages:
-            {c.page_content}
-            </CONVERSATION>"""
+            dedent(
+                f"""
+                <CONVERSATION>
+                Start: {datetime.fromtimestamp(c.metadata["start_timestamp"]).strftime("%Y-%m-%d")}
+                End: {datetime.fromtimestamp(c.metadata["end_timestamp"]).strftime("%Y-%m-%d")}
+                Messages:
+                {c.metadata["texts"]}
+                </CONVERSATION>"""
+            )
             for c in docs
         ]
         return "\n".join(conversations)
@@ -83,11 +91,11 @@ async def answer(query: str, k=10, lambda_mult=0.3):
     def format_html(message: AIMessage):
         text = re.sub(r"\*\*(.*?)\*\*|__(.*?)__", r"<b>\1\2</b>", message.content)
         text = re.sub(r"\*(.*?)\*|_(.*?)_", r"<i>\1\2</i>", text)
-        return text
+        return dedent(text)
 
     retriever = vectorstore.as_retriever(
-        search_type="mmr",
-        search_kwargs={"k": k, "lambda_mult": lambda_mult},
+        search_type="similarity",
+        search_kwargs={"k": k},
     )
     chain = (
         {"context": retriever | format_docs, "query": RunnablePassthrough()}
@@ -97,5 +105,5 @@ async def answer(query: str, k=10, lambda_mult=0.3):
     )
 
     logger.debug(f"Answering Query: {query}")
-    response = await chain.ainvoke(query)
+    response = await chain.ainvoke(f"query: {query}")
     return response

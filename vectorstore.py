@@ -1,13 +1,10 @@
-from langchain_pinecone import PineconeEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_qdrant import QdrantVectorStore
 
 from config import config
 from db import qdrant_client
 
-embedding = PineconeEmbeddings(
-    model="multilingual-e5-large",
-    pinecone_api_key=config.pinecone_api_key,
-)
+embedding = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-small")
 
 vectorstore = QdrantVectorStore(
     client=qdrant_client,

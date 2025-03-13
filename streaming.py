@@ -2,7 +2,6 @@ import contextlib
 from datetime import datetime, timedelta, timezone
 import json
 import pathlib
-import time
 
 import bytewax.operators as op
 import bytewax.operators.windowing as win
@@ -12,7 +11,7 @@ from bytewax.outputs import DynamicSink, StatelessSinkPartition
 from bytewax.operators.windowing import EventClock, SessionWindower
 import pandas as pd
 from pydantic import ValidationError
-from tqdm import trange, tqdm
+from tqdm import trange
 
 from logger import get_logger
 from vectorstore import vectorstore
@@ -118,27 +117,25 @@ class RedisSink(DynamicSink):
 
 class VectorStoreOutput(StatelessSinkPartition):
     desc: str = "Upserting Conversations to Vector Store"
-    batch_size: int = 64
-    delay: int = 5
+    batch_size: int = 20
 
     def write_batch(self, rows: list[Conversation]):
-        sorted_rows = sorted(rows, key=lambda x: len(x.texts), reverse=True)
-        num_chunks = (len(rows) + self.batch_size - 1) // self.batch_size
-        chunks: list[list[Conversation]] = [[] for _ in range(num_chunks)]
-        chunk_lengths = [0] * num_chunks
-
-        for row in sorted_rows:
-            min_idx = chunk_lengths.index(min(chunk_lengths))
-            chunks[min_idx].append(row)
-            chunk_lengths[min_idx] = chunk_lengths[min_idx] + len(row.texts)
-
-        for chunk in tqdm(chunks, desc=self.desc):
+        for i in trange(0, len(rows), self.batch_size, desc=self.desc):
+            batch_rows = rows[i : i + self.batch_size]
             vectorstore.add_texts(
-                ids=[i.id for i in chunk],
-                texts=[i.texts for i in chunk],
-                metadatas=chunk,
+                ids=[i.id for i in batch_rows],
+                texts=[f"passage: {i.texts}" for i in batch_rows],
+                metadatas=batch_rows,
             )
-            time.sleep(self.delay)
+        #     tasks.append(asyncio.create_task(coro))
+        #     if len(tasks) % 200 == 0:
+        #         await asyncio.sleep(self.delay)
+        # async def upsert_batch():
+        #     tasks = []
+        #     for task in tqdm_asyncio.as_completed(tasks, desc=self.desc):
+        #         await task
+
+        # asyncio.run(upsert_batch())
 
 
 class VectorStoreSink(DynamicSink):

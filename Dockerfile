@@ -9,12 +9,15 @@ ENV PATH="/root/.local/bin/:$PATH"
 
 COPY pyproject.toml uv.lock ./
 RUN uv sync --no-dev --frozen --no-install-project
+RUN uv run huggingface-cli download intfloat/multilingual-e5-small model.safetensors config.json tokenizer.json tokenizer_config.json
 
 #
 
 FROM python:3.12-slim-bookworm AS production
 
 COPY --from=builder /app /app
+COPY --from=builder /root/.cache/huggingface /root/.cache/huggingface
+
 ENV PATH="/app/.venv/bin:$PATH"
 WORKDIR /app
 COPY . .

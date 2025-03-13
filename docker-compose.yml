@@ -3,12 +3,18 @@ x-environment: &environment
     - REDIS_URL=redis://redis:6379/0
 
 services:
+    base-image:
+        platform: ${PLATFORM:-linux/arm64}
+        image: hieumdd/bap-be-bot
+        build: .
+        container_name: bap-be-bot-base
+
     streaming-migrate:
         platform: ${PLATFORM:-linux/arm64}
         image: hieumdd/bap-be-bot
         depends_on:
             - redis
-        build: .
+            - qdrant
         container_name: bap-be-bot-streaming-migrate
         volumes:
             - ./migrations:/app/migrations
@@ -24,7 +30,6 @@ services:
         depends_on:
             - redis
             - qdrant
-        build: .
         container_name: bap-be-bot-streaming-embed
         entrypoint: ['python', '-m', 'bytewax.run', 'streaming:embed']
         environment: *environment
@@ -38,7 +43,6 @@ services:
         depends_on:
             - redis
             - qdrant
-        build: .
         container_name: bap-be-bot-bot
         entrypoint: ['python', 'bot.py']
         environment: *environment
