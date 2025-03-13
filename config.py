@@ -8,7 +8,6 @@ class Config(BaseSettings):
     model_config = SettingsConfigDict()
 
     google_api_key: str
-    pinecone_api_key: str
     qdrant_url: str
     redis_url: str
     telegram_bot_token: str
