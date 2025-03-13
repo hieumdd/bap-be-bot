@@ -13,7 +13,7 @@ def migrate():
         return
     qdrant_client.create_collection(
         config.conversation_vectorstore_key,
-        vectors_config={"size": 1024, "distance": "Cosine"},
+        vectors_config={"size": 384, "distance": "Cosine"},
         hnsw_config={
             "m": 16,
             "ef_construct": 100,
