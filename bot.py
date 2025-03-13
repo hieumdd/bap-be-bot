@@ -39,7 +39,7 @@ def queue_message():
             text=update.message.text,
         )
         logger.debug(f"Push to Redis: {message}")
-        repository().write(message)
+        repository.write(message)
 
     return _queue_message
 
