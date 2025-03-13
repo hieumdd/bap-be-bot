@@ -27,7 +27,6 @@ logger = get_logger(__name__)
 def llm(config=Config):
     logger.debug("Initialized LLM")
     return ChatGoogleGenerativeAI(
-        temperature=1.0,
         model="gemini-2.0-flash",
         safety_settings={
             HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
@@ -55,7 +54,7 @@ def prompt():
         ### Answer Requirements
         - Provide detailed analysis based on evidence from conversations
         - Provide quotation or proofs
-        - ONLY ANSWER IN THE QUESTION'S LANGUAGE
+        - ONLY ANSWER IN THE PROMPT'S LANGUAGE
 
         ### Answer Formatting Requirements
         - Each section contains no more than 4096 character
@@ -74,7 +73,14 @@ def prompt():
     return ChatPromptTemplate.from_messages([system, human])
 
 
-async def answer(query: str, k=10, vectorstore=vectorstore, prompt=prompt, llm=llm):
+async def answer(
+    query: str,
+    k=10,
+    lambda_mult=0.3,
+    vectorstore=vectorstore,
+    prompt=prompt,
+    llm=llm,
+):
     def format_docs(docs: list[Document]):
         conversations = [
             f"""<CONVERSATION>
@@ -93,8 +99,8 @@ async def answer(query: str, k=10, vectorstore=vectorstore, prompt=prompt, llm=l
         return message
 
     retriever = vectorstore().as_retriever(
-        search_type="similarity",
-        search_kwargs={"k": k},
+        search_type="mmr",
+        search_kwargs={"k": k, "lambda_mult": lambda_mult},
     )
     chain = (
         {"context": retriever | format_docs, "query": RunnablePassthrough()}
