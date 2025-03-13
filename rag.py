@@ -72,7 +72,7 @@ prompt = ChatPromptTemplate.from_messages(
 )
 
 
-async def answer(query: str, k=10, lambda_mult=0.3):
+async def answer(query: str, k=10):
     def format_docs(docs: list[Document]):
         conversations = [
             dedent(
