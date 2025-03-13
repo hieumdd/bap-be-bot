@@ -95,8 +95,8 @@ async def answer(
 
     def format_html(message: AIMessage):
         text = re.sub(r"\*\*(.*?)\*\*|__(.*?)__", r"<b>\1\2</b>", message.content)
-        message = re.sub(r"\*(.*?)\*|_(.*?)_", r"<i>\1\2</i>", text)
-        return message
+        text = re.sub(r"\*(.*?)\*|_(.*?)_", r"<i>\1\2</i>", text)
+        return text
 
     retriever = vectorstore().as_retriever(
         search_type="mmr",
