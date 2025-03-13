@@ -8,11 +8,12 @@ services:
         image: hieumdd/bap-be-bot
         build: .
         container_name: bap-be-bot-base
+        command: ['echo', 'Build Completed']
 
     streaming-migrate:
-        platform: ${PLATFORM:-linux/arm64}
         image: hieumdd/bap-be-bot
         depends_on:
+            - base-image
             - redis
             - qdrant
         container_name: bap-be-bot-streaming-migrate
@@ -25,9 +26,9 @@ services:
             - bap-be-bot
 
     streaming-embed:
-        platform: ${PLATFORM:-linux/arm64}
         image: hieumdd/bap-be-bot
         depends_on:
+            - base-image
             - redis
             - qdrant
         container_name: bap-be-bot-streaming-embed
@@ -38,9 +39,9 @@ services:
             - bap-be-bot
 
     bot:
-        platform: ${PLATFORM:-linux/arm64}
         image: hieumdd/bap-be-bot
         depends_on:
+            - base-image
             - redis
             - qdrant
         container_name: bap-be-bot-bot
