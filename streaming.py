@@ -1,8 +1,7 @@
-from abc import ABC
-import asyncio
-from dataclasses import dataclass
+import contextlib
 from datetime import datetime, timedelta, timezone
 import json
+import pathlib
 
 import bytewax.operators as op
 import bytewax.operators.windowing as win
@@ -10,29 +9,23 @@ from bytewax.dataflow import Dataflow
 from bytewax.inputs import DynamicSource, StatelessSourcePartition
 from bytewax.outputs import DynamicSink, StatelessSinkPartition
 from bytewax.operators.windowing import EventClock, SessionWindower
-from dependency_injector.wiring import Provide, inject
 import pandas as pd
-from redis import Redis
+from pydantic import ValidationError
 from tqdm import trange
-from tqdm.asyncio import tqdm_asyncio
 
 from logger import get_logger
-from container import Container
-from vectorstore import CustomVectorStore
+from vectorstore import vectorstore
+from models.message import Message, MessageRepository
+from models.conversation import Conversation
 
 logger = get_logger(__name__)
 
 
-@dataclass
-class MigrationInputOptions:
-    chat_id: str
-    file_path: str
-
-
 class MigrationInput(StatelessSourcePartition):
-    def __init__(self, options: MigrationInputOptions):
-        self.chat_id = options.chat_id
-        self.file = open(options.file_path, "r")
+    def __init__(self, file_path: str):
+        path = pathlib.Path(file_path)
+        self.chat_id = int(path.stem)
+        self.file = open(file_path, "r")
         self.is_done = False
 
     def process_text(self, v: str | list[str]):
@@ -53,69 +46,42 @@ class MigrationInput(StatelessSourcePartition):
             raise StopIteration()
 
         extract_data = json.load(self.file)
-        rows = []
-        for message in extract_data["messages"]:
-            if message["type"] != "message":
+        messages = []
+        for message_dict in extract_data["messages"]:
+            if message_dict["type"] != "message":
                 continue
-            text = self.process_text(message["text"])
-            if not text:
-                continue
-            row = {
-                "chat_id": self.chat_id,
-                "id": message["id"],
-                "text": text,
-                "timestamp": int(message["date_unixtime"]),
-                "from": message["from"],
-            }
-            rows.append(row)
+            text = self.process_text(message_dict["text"])
+            with contextlib.suppress(ValidationError):
+                message = Message(
+                    chat_id=self.chat_id,
+                    id=message_dict["id"],
+                    timestamp=int(message_dict["date_unixtime"]),
+                    text=text,
+                    from_=message_dict["from"],
+                )
+                messages.append(message)
         self.is_done = True
-        return rows
+        return messages
 
     def close(self):
         self.file.close()
 
 
 class MigrationSource(DynamicSource):
-    def __init__(self, options: MigrationInputOptions):
-        self.options = options
+    def __init__(self, file_path: str):
+        self.file_path = file_path
 
     def build(self, *args):
-        return MigrationInput(self.options)
-
-
-@dataclass
-class RedisIOOptions(ABC):
-    desc: str
-    batch_size: int = 100
-
-
-@dataclass
-class RedisInputOptions(RedisIOOptions):
-    pass
+        return MigrationInput(self.file_path)
 
 
 class RedisInput(StatelessSourcePartition):
-    def __init__(self, options: RedisInputOptions):
-        self.batch_size = options.batch_size
-        self.desc = options.desc
+    def __init__(self):
+        self.repository = MessageRepository()
 
-    @inject
-    def next_batch(
-        self,
-        key: str = Provide[Container.config.database_key],
-        redis: Redis = Provide[Container.db.redis],
-    ):
+    def next_batch(self):
         logger.debug("Polling from Redis")
-        messages_bytes = redis.lrange(key, 0, -1)
-        if not messages_bytes:
-            return []
-        with redis.pipeline() as pipe:
-            for i in trange(0, len(messages_bytes), self.batch_size, desc=self.desc):
-                batch_messages_bytes = messages_bytes[i : i + self.batch_size]
-                pipe.rpush(f"{key}-cumulative", *batch_messages_bytes)
-            pipe.delete(key)
-            pipe.execute()
-        messages = list(map(lambda x: json.loads(x.decode("utf-8")), messages_bytes))
+        messages = self.repository.read()
         return messages
 
     def next_awake(self):
@@ -123,165 +89,129 @@ class RedisInput(StatelessSourcePartition):
 
 
 class RedisSource(DynamicSource):
-    def __init__(self, options: RedisInputOptions):
-        self.options = options
-
     def build(self, *args):
-        return RedisInput(self.options)
-
-
-@dataclass
-class RedisOutputOptions(RedisIOOptions):
-    pass
+        return RedisInput()
 
 
 class RedisOutput(StatelessSinkPartition):
-    @inject
-    def __init__(
-        self,
-        options: RedisOutputOptions,
-        redis: Redis = Provide[Container.db.redis],
-    ):
-        self.batch_size = options.batch_size
-        self.desc = options.desc
-        self.pipe = redis.pipeline()
+    desc: str = "Writing Messages to Redis"
+    batch_size: int = 100
 
-    def write_batch(
-        self,
-        items: list[dict],
-        key: str = Provide[Container.config.database_key],
-    ):
+    def __init__(self):
+        self.repository = MessageRepository()
+        self.pipe = self.repository.pipeline()
+
+    def write_batch(self, items: list[Message]):
         for i in trange(0, len(items), self.batch_size, desc=self.desc):
             batch_items = items[i : i + self.batch_size]
-            self.pipe.rpush(key, *map(json.dumps, batch_items))
+            self.repository.write(*batch_items, pipe=self.pipe)
 
     def close(self):
         self.pipe.execute()
 
 
 class RedisSink(DynamicSink):
-    def __init__(self, options: RedisOutputOptions):
-        self.options = options
-
     def build(self, *args):
-        return RedisOutput(self.options)
-
-
-@dataclass
-class VectorStoreOutputOptions:
-    desc: str
-    batch_size: int = 10
-    concurrency: int = 5
+        return RedisOutput()
 
 
 class VectorStoreOutput(StatelessSinkPartition):
-    @inject
-    def __init__(
-        self,
-        options: VectorStoreOutputOptions,
-        vectorstore: CustomVectorStore = Provide[Container.vectorstore],
-    ):
-        self.desc = options.desc
-        self.batch_size = options.batch_size
-        self.concurrency = options.concurrency
-        self.vectorstore = vectorstore
+    desc: str = "Upserting Conversations to Vector Store"
+    batch_size: int = 20
 
-    def write_batch(self, rows: list[dict]):
+    def write_batch(self, rows: list[Conversation]):
+        for i in trange(0, len(rows), self.batch_size, desc=self.desc):
+            batch_rows = rows[i : i + self.batch_size]
+            vectorstore.add_texts(
+                ids=[i.id for i in batch_rows],
+                texts=[f"passage: {i.texts}" for i in batch_rows],
+                metadatas=batch_rows,
+            )
+        #     tasks.append(asyncio.create_task(coro))
+        #     if len(tasks) % 200 == 0:
+        #         await asyncio.sleep(self.delay)
+        # async def upsert_batch():
+        #     tasks = []
+        #     for task in tqdm_asyncio.as_completed(tasks, desc=self.desc):
+        #         await task
 
-        async def upsert_batch():
-            tasks = []
-            for i in range(0, len(rows), self.batch_size):
-                coro = self.vectorstore.upsert(rows[i : i + self.batch_size])
-                tasks.append(asyncio.create_task(coro))
-                if len(tasks) * self.batch_size % 25 == 0:
-                    await asyncio.sleep(1)
-            for task in tqdm_asyncio.as_completed(tasks, desc=self.desc):
-                await task
-
-        asyncio.run(upsert_batch())
+        # asyncio.run(upsert_batch())
 
 
 class VectorStoreSink(DynamicSink):
-    def __init__(self, options: VectorStoreOutputOptions):
-        self.options = options
-
     def build(self, *args):
-        return VectorStoreOutput(self.options)
+        return VectorStoreOutput()
 
 
-def transform_to_conversation(items: tuple[str, tuple[str, list[dict]]]):
+def sort_message(items):
+    return sorted(items, key=lambda x: x.timestamp)
+
+
+def reduce_by_conversation(items: tuple[str, tuple[str, list[Message]]]):
     chat_id, data = items
     _, messages = data
 
-    df = pd.DataFrame(messages).drop_duplicates().sort_values("timestamp")
+    df = (
+        pd.DataFrame(map(lambda m: m.model_dump(by_alias=True), messages))
+        .drop_duplicates()
+        .sort_values("timestamp")
+    )
     df["text"] = df["from"] + ": " + df["text"]
 
-    conversation_id = str(df["timestamp"].min())
-    conversation = {
-        "chat_id": chat_id,
-        "conversation_id": conversation_id,
-        "start_timestamp": int(df["timestamp"].min()),
-        "end_timestamp": int(df["timestamp"].max()),
-        "texts": "\n".join(df["text"].astype(str).to_list()),
-    }
+    conversation_id = int(df["timestamp"].min())
+    conversation = Conversation(
+        chat_id=int(chat_id),
+        conversation_id=conversation_id,
+        start_timestamp=int(df["timestamp"].min()),
+        end_timestamp=int(df["timestamp"].max()),
+        texts="\n".join(df["text"].astype(str).to_list()),
+    )
     return conversation
 
 
-container = Container()
-container.wire(modules=[__name__])
-
-migrate = Dataflow("message")
-message_stream1 = op.input(
+migrate = Dataflow("migrate")
+migrate_input1 = op.input(
     "input1",
     migrate,
-    MigrationSource(
-        MigrationInputOptions("859761464", "./migrations/customer-journey.json")
-    ),
+    MigrationSource("./migrations/859761464.json"),
 )
-message_stream2 = op.input(
+migrate_input2 = op.input(
     "input2",
     migrate,
-    MigrationSource(
-        MigrationInputOptions("1001863500354", "./migrations/hop-lop.json")
-    ),
+    MigrationSource("./migrations/1001863500354.json"),
 )
-merged_stream = op.merge("merge", message_stream1, message_stream2)
-op.output(
-    "output",
-    merged_stream,
-    RedisSink(RedisOutputOptions("Writing Messages to Redis")),
+migrate_merged = op.merge("merge", migrate_input1, migrate_input2)
+migrate_keyed = op.key_on("key", migrate_merged, lambda _: "ALL")
+migrate_folded = op.fold_final(
+    "fold",
+    migrate_keyed,
+    lambda: [],
+    lambda acc, cur: acc + [cur],
 )
+migrate_keyrm = op.key_rm("key_rm", migrate_folded)
+migrate_sorted = op.flat_map(
+    "sort",
+    migrate_keyrm,
+    lambda messages: sorted(messages, key=lambda m: m.timestamp),
+)
+op.output("output", migrate_sorted, RedisSink())
 
 
-embed = Dataflow("conversation")
-conversation_stream = op.input(
-    "input",
-    embed,
-    RedisSource(RedisInputOptions("Transfering Messages on Redis")),
-)
-keyed_conversation = op.key_on(
-    "group_by_chat_id",
-    conversation_stream,
-    lambda x: x["chat_id"],
-)
-windowed_conversation = win.collect_window(
-    "window_by_conversation_id",
-    keyed_conversation,
+embed = Dataflow("embed")
+embed_input = op.input("input", embed, RedisSource())
+embed_keyed = op.key_on("key_on_chat_id", embed_input, lambda m: str(m.chat_id))
+embed_windowed = win.collect_window(
+    "window_by_session",
+    embed_keyed,
     EventClock(
-        lambda x: datetime.fromtimestamp(x["timestamp"], timezone.utc),
+        lambda m: datetime.fromtimestamp(m.timestamp, timezone.utc),
         wait_for_system_duration=timedelta(seconds=30),
     ),
     SessionWindower(timedelta(seconds=7200)),
 )
-grouped_conversation = op.map(
-    "group_by_conversation_id",
-    windowed_conversation.down,
-    transform_to_conversation,
+embed_reduced = op.map(
+    "reduce_by_conversation",
+    embed_windowed.down,
+    reduce_by_conversation,
 )
-op.output(
-    "output",
-    grouped_conversation,
-    VectorStoreSink(
-        VectorStoreOutputOptions("Upserting Conversations to Vector Store")
-    ),
-)
+op.output("output", embed_reduced, VectorStoreSink())

@@ -1,6 +1,7 @@
+from functools import lru_cache
 import logging
 
-
+@lru_cache(1)
 class CustomFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         return f"[{record.levelname}] [{record.name}]: {record.getMessage()}"

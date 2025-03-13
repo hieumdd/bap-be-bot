@@ -1,10 +1,10 @@
-from dependency_injector import containers, providers
 from qdrant_client import QdrantClient
 import redis
 
+from logger import get_logger
+from config import config
 
-class DB(containers.DeclarativeContainer):
-    config = providers.Configuration()
+logger = get_logger(__name__)
 
-    qdrant = providers.Singleton(QdrantClient, url=config.qdrant_url)
-    redis = providers.Singleton(redis.Redis.from_url, url=config.redis_url)
+redis_client = redis.Redis.from_url(config.redis_url, decode_responses=True)
+qdrant_client = QdrantClient(url=config.qdrant_url)
