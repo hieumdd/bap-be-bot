@@ -74,7 +74,7 @@ async def answer(query: str, k=10, lambda_mult=0.3):
             Start: {datetime.fromtimestamp(c.metadata["start_timestamp"]).strftime("%Y-%m-%d")}
             End: {datetime.fromtimestamp(c.metadata["end_timestamp"]).strftime("%Y-%m-%d")}
             Messages:
-            {c.page_content}
+            {c.metadata["texts"]}
             </CONVERSATION>"""
             for c in docs
         ]
@@ -86,8 +86,8 @@ async def answer(query: str, k=10, lambda_mult=0.3):
         return text
 
     retriever = vectorstore.as_retriever(
-        search_type="mmr",
-        search_kwargs={"k": k, "lambda_mult": lambda_mult},
+        search_type="similarity",
+        search_kwargs={"k": k},
     )
     chain = (
         {"context": retriever | format_docs, "query": RunnablePassthrough()}
@@ -97,5 +97,5 @@ async def answer(query: str, k=10, lambda_mult=0.3):
     )
 
     logger.debug(f"Answering Query: {query}")
-    response = await chain.ainvoke(query)
+    response = await chain.ainvoke(f"query: {query}")
     return response
