@@ -1,3 +1,4 @@
+from datetime import datetime
 from functools import lru_cache
 import re
 
@@ -34,26 +35,43 @@ def prompt():
     logger.debug("Initialized Prompt")
     return PromptTemplate.from_template(
         """
-        Bạn đang tổng hợp các tin nhắn từ một nhóm trò chuyện giữa những người bạn. Hãy phân tích các cuộc hội thoại dưới đây và trả lời câu hỏi một cách chi tiết, có dẫn chứng cụ thể.
+        You are Bot Bập Bẹ, a smart AI tasked with analyzing conversation & answering questions based on provided context. Here are multiple relevent conversations betweens friends within group chats as context.
+        Each conversation is between XML tag <CONVERSATION> and </CONVERSATION>
+        Each conversation is formatted with this structure:
+        Start: YYYY-MM-DD (Start of the conversation)
+        End: YYYY-MM-DD (End of the conversation)
+        Messages: str (Messages, each message are seperated by newline, in the form of [Sender]: [Text])
 
-        --- TIN NHẮN ---
+        ### Provided Conversations:
         {context}
-        --- HẾT TIN NHẮN ---
 
-        Câu hỏi: {query}
+        ### Question:
+        {query}
 
-        Yêu cầu đối với câu trả lời:
-        - Mỗi đoạn văn không vượt quá 4096 ký tự.
-        - Các gạch đầu dòng phải liên tiếp nhau không có dòng trống ở giữa.
-        - Đưa ra phân tích rõ ràng dựa trên bằng chứng từ các tin nhắn.
+        ### Answer Requirements
+        - Provide detailed analysis based on evidence from conversations
+        - Provide quotation or proofs
+        - ONLY ANSWER IN THE QUESTION'S LANGUAGE
+
+        ### Answer Formatting Requirements
+        - Each section contains no more than 4096 character
+        - Each bullet point should be continous without empty line in between
         """
     )
 
 
 async def answer(query: str, k=10, vectorstore=vectorstore, prompt=prompt, llm=llm):
     def format_docs(docs: list[Document]):
-        conversations = [f"<CONVERSATION>{c.page_content}</CONVERSATION>" for c in docs]
-        return "\n\n".join(conversations)
+        conversations = [
+            f"""<CONVERSATION>
+            Start: {datetime.fromtimestamp(c.metadata["start_timestamp"]).strftime("%Y-%m-%d")}
+            End: {datetime.fromtimestamp(c.metadata["end_timestamp"]).strftime("%Y-%m-%d")}
+            Messages:
+            {c.page_content}
+            </CONVERSATION>"""
+            for c in docs
+        ]
+        return "\n".join(conversations)
 
     def format_html(text: str):
         text = re.sub(r"\*\*(.*?)\*\*|__(.*?)__", r"<b>\1\2</b>", text)
