@@ -12,7 +12,7 @@ from telegram.ext import (
 from tenacity import AsyncRetrying, wait_fixed
 
 from logger import get_logger
-from config import Config
+from config import config
 from models.message import Message, MessageRepository
 import rag
 
@@ -20,16 +20,14 @@ import rag
 logger = get_logger(__name__)
 
 
-def build_application(config=Config):
-    async def post_init(application: Application):
-        await application.bot.set_my_commands([("query", "Query")])
-        logger.debug("Bot is running")
-
-    token = config().telegram_bot_token
-    return Application.builder().token(token).post_init(post_init).build()
+async def post_init(application: Application):
+    await application.bot.set_my_commands([("query", "Query")])
+    logger.debug("Bot is running")
 
 
-def queue_message(repository=MessageRepository):
+def queue_message():
+    repository = MessageRepository()
+
     async def _queue_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not update.message or not update.message.chat.id:
             return
@@ -46,27 +44,24 @@ def queue_message(repository=MessageRepository):
     return _queue_message
 
 
-def answer(rag=rag.answer):
-    async def _answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not update.message or not update.message.chat.id:
-            return
-        if not context.args:
-            await update.message.reply_text("Empty Query")
-            return
-        await update.message.reply_chat_action(ChatAction.TYPING)
-        query = " ".join(context.args)
-        response = await rag(query)
-        for text in response.split("\n\n"):
-            async for attempt in AsyncRetrying(wait=wait_fixed(2)):
-                with attempt:
-                    await update.message.reply_chat_action(ChatAction.TYPING)
-                    await update.message.reply_text(
-                        text[:4096],
-                        parse_mode=ParseMode.HTML,
-                    )
-                    await asyncio.sleep(0.25)
-
-    return _answer
+async def answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.chat.id:
+        return
+    if not context.args:
+        await update.message.reply_text("Empty Query")
+        return
+    await update.message.reply_chat_action(ChatAction.TYPING)
+    query = " ".join(context.args)
+    response = await rag.answer(query)
+    for text in response.split("\n\n"):
+        async for attempt in AsyncRetrying(wait=wait_fixed(2)):
+            with attempt:
+                await update.message.reply_chat_action(ChatAction.TYPING)
+                await update.message.reply_text(
+                    text[:4096],
+                    parse_mode=ParseMode.HTML,
+                )
+                await asyncio.sleep(0.25)
 
 
 async def on_error(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -75,11 +70,12 @@ async def on_error(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 if __name__ == "__main__":
-    application = build_application()
+    token = config.telegram_bot_token
+    application = Application.builder().token(token).post_init(post_init).build()
 
     text_message = filters.TEXT & ~filters.COMMAND
     application.add_handler(MessageHandler(text_message, queue_message()))
-    application.add_handler(CommandHandler("query", answer()))
+    application.add_handler(CommandHandler("query", answer))
     application.add_error_handler(on_error)
 
     application.run_polling()

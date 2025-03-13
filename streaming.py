@@ -77,8 +77,8 @@ class MigrationSource(DynamicSource):
 
 
 class RedisInput(StatelessSourcePartition):
-    def __init__(self, repository=MessageRepository):
-        self.repository = repository()
+    def __init__(self):
+        self.repository = MessageRepository()
 
     def next_batch(self):
         logger.debug("Polling from Redis")
@@ -98,8 +98,8 @@ class RedisOutput(StatelessSinkPartition):
     desc: str = "Writing Messages to Redis"
     batch_size: int = 100
 
-    def __init__(self, repository=MessageRepository):
-        self.repository = repository()
+    def __init__(self):
+        self.repository = MessageRepository()
         self.pipe = self.repository.pipeline()
 
     def write_batch(self, items: list[Message]):
@@ -121,9 +121,6 @@ class VectorStoreOutput(StatelessSinkPartition):
     batch_size: int = 64
     delay: int = 5
 
-    def __init__(self, vectorstore=vectorstore):
-        self.vectorstore = vectorstore()
-
     def write_batch(self, rows: list[Conversation]):
         sorted_rows = sorted(rows, key=lambda x: len(x.texts), reverse=True)
         num_chunks = (len(rows) + self.batch_size - 1) // self.batch_size
@@ -136,7 +133,7 @@ class VectorStoreOutput(StatelessSinkPartition):
             chunk_lengths[min_idx] = chunk_lengths[min_idx] + len(row.texts)
 
         for chunk in tqdm(chunks, desc=self.desc):
-            self.vectorstore.add_texts(
+            vectorstore.add_texts(
                 ids=[i.id for i in chunk],
                 texts=[i.texts for i in chunk],
                 metadatas=chunk,

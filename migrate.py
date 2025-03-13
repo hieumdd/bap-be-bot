@@ -1,4 +1,4 @@
-from config import Config
+from config import config
 from db import qdrant_client
 
 from logger import get_logger
@@ -6,14 +6,13 @@ from logger import get_logger
 logger = get_logger(__name__)
 
 
-def migrate(config=Config, qdrant_client=qdrant_client):
-    client = qdrant_client()
-    collection_name = config().conversation_vectorstore_key
-    if client.collection_exists(collection_name):
+def migrate():
+    collection_name = config.conversation_vectorstore_key
+    if qdrant_client.collection_exists(collection_name):
         logger.info(f"Collection {collection_name} already exists")
         return
-    client.create_collection(
-        config().conversation_vectorstore_key,
+    qdrant_client.create_collection(
+        config.conversation_vectorstore_key,
         vectors_config={"size": 1024, "distance": "Cosine"},
         hnsw_config={
             "m": 16,

@@ -15,3 +15,6 @@ class Config(BaseSettings):
 
     message_repository_key: str = "message"
     conversation_vectorstore_key: str = "conversation"
+
+
+config = Config()

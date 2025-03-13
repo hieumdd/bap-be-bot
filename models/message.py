@@ -1,9 +1,10 @@
+from functools import lru_cache
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 from redis.client import Pipeline
 
-from config import Config
+from config import config
 from db import redis_client
 
 
@@ -17,24 +18,24 @@ class Message(BaseModel):
     from_: str = Field(alias="from")
 
 
+@lru_cache(1)
 class MessageRepository:
-    def __init__(self, config=Config, redis_client=redis_client):
-        self.key = config().message_repository_key
-        self.redis = redis_client()
+    def __init__(self):
+        self.key = config.message_repository_key
 
     def read(self) -> list[Message]:
-        count = self.redis.llen(self.key)
+        count = redis_client.llen(self.key)
         if not count:
             return []
-        message_raw = self.redis.lpop(self.key, count)
+        message_raw = redis_client.lpop(self.key, count)
         return [Message.model_validate_json(m) for m in message_raw]
 
     def write(self, *messages: list[Message], pipe: Optional[Pipeline] = None):
-        executor = pipe or self.redis
+        executor = pipe or redis_client
         executor.rpush(
             self.key,
             *map(lambda m: m.model_dump_json(by_alias=True), messages),
         )
 
     def pipeline(self) -> Pipeline:
-        return self.redis.pipeline()
+        return redis_client.pipeline()
