@@ -75,10 +75,15 @@ services:
 
     watchtower:
         image: containrrr/watchtower
-        container_name: bot-bap-be-watchtower
-        command: --interval 300
+        container_name: watchtower
+        restart: always
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
+            - ~/.docker/config.json:/config.json:ro
+        environment:
+            - WATCHTOWER_CLEANUP=true
+            - WATCHTOWER_DEBUG=true
+            - WATCHTOWER_POLL_INTERVAL=60
 
 networks:
     bap-be-bot:
