@@ -54,7 +54,7 @@ async def answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = " ".join(context.args)
     response = await rag.answer(query)
     for text in response.split("\n\n"):
-        async for attempt in AsyncRetrying(wait=wait_fixed(2)):
+        async for attempt in AsyncRetrying(wait=wait_fixed(2), stop=4, reraise=True):
             with attempt:
                 await update.message.reply_chat_action(ChatAction.TYPING)
                 await update.message.reply_text(
