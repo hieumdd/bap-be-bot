@@ -24,6 +24,7 @@ logger = get_logger(__name__)
 
 chat_model = ChatGoogleGenerativeAI(
     model="gemini-2.0-flash",
+    temperature=1.0,
     safety_settings={
         HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
         HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
