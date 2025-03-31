@@ -73,14 +73,19 @@ async def ziwei_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.message.reply_text("Empty Query")
         return
+
     question = " ".join(context.args)
     for node_id, state in run_ziwei_graph(question):
         async for attempt in AsyncRetrying(wait=wait_fixed(2), stop=4, reraise=True):
             with attempt:
                 await update.message.reply_chat_action(ChatAction.TYPING)
-                if node_id == "handle_error":
+                if (
+                    node_id == "handle_error"
+                    or node_id == "summarize"
+                    or node_id.startswith("analyze")
+                ):
                     await update.message.reply_text(
-                        state["messages"][-1].content,
+                        state["messages"][-1].content[:4096],
                         parse_mode=ParseMode.HTML,
                     )
                 if node_id == "generate_image":
@@ -89,12 +94,6 @@ async def ziwei_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         caption="Lá số Tử Vi",
                         parse_mode=ParseMode.HTML,
                     )
-                if node_id.startswith("analyze"):
-                    for message in state.values():
-                        await update.message.reply_html(
-                            message[:4096],
-                            parse_mode=ParseMode.HTML,
-                        )
         await asyncio.sleep(0.25)
 
 
