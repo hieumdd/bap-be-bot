@@ -89,3 +89,42 @@ analyze_tai_bach = create_analyze("Tài Bạch", "analysis_tai_bach")
 analyze_tu_tuc = create_analyze("Tử Tức", "analysis_tu_tuc")
 analyze_phu_the = create_analyze("Phu Thê", "analysis_phu_the")
 analyze_huynh_de = create_analyze("Huynh Đệ", "analysis_huynh_de")
+
+
+def summarize(state: ZiweiState) -> dict:
+    system_message = SystemMessage(
+        content=dedent(
+            """
+            Bạn là một nhà chiêm tinh và chuyên gia tử vi đẩu số Việt Nam.
+            Ở tin nhắn trước bạn đã phân tích tất cả các Cung của 1 lá số của một người.
+            Hãy sử dụng ngữ cảnh được cung cấp (phân tích các Cung của lá số) để đưa ra lời khuyên tốt nhất
+            Trả lời theo bullet points, đúng 5 bullet points
+            """
+        )
+    )
+
+    keys = [
+        "analysis_menh",
+        "analysis_phu_mau",
+        "analysis_phuc_duc",
+        "analysis_dien_trach",
+        "analysis_quan_loc",
+        "analysis_no_boc",
+        "analysis_thien_di",
+        "analysis_tat_ach",
+        "analysis_tai_bach",
+        "analysis_tu_tuc",
+        "analysis_phu_the",
+        "analysis_huynh_de",
+    ]
+    human_messages = [
+        HumanMessagePromptTemplate.from_template(f"{{{key}}}") for key in keys
+    ]
+
+    prompt = ChatPromptTemplate.from_messages([system_message, *human_messages])
+    chain = prompt | chat_model
+    analysis: AIMessage = chain.invoke({k: state[k] for k in keys})
+    return {
+        "messages": state["messages"] + [analysis],
+        "summary": analysis.content,
+    }

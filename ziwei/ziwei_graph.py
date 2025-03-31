@@ -20,6 +20,7 @@ from ziwei.ziwei_node import (
     analyze_tu_tuc,
     analyze_phu_the,
     analyze_huynh_de,
+    summarize,
 )
 
 analyze_nodes = [
@@ -37,6 +38,12 @@ analyze_nodes = [
     ("analyze_huynh_de", analyze_huynh_de),
 ]
 
+
+def extract_input_validation(state: ZiweiState) -> str:
+    """Route to handle_error if input has error, otherwise to generate_image"""
+    return state["birthchart_input"].error
+
+
 workflow = StateGraph(ZiweiState)
 
 workflow.add_node("extract_input", extract_input)
@@ -44,11 +51,7 @@ workflow.add_node("handle_error", handle_error)
 workflow.add_node("generate_image", generate_image)
 for node_id, node in analyze_nodes:
     workflow.add_node(node_id, node)
-
-
-def extract_input_validation(state: ZiweiState) -> str:
-    """Route to handle_error if input has error, otherwise to generate_image"""
-    return state["birthchart_input"].error
+workflow.add_node("summarize", summarize)
 
 
 workflow.add_edge(START, "extract_input")
@@ -60,7 +63,8 @@ workflow.add_conditional_edges(
 workflow.add_edge("handle_error", END)
 for node_id, _ in analyze_nodes:
     workflow.add_edge("generate_image", node_id)
-    workflow.add_edge(node_id, END)
+    workflow.add_edge(node_id, "summarize")
+workflow.add_edge("summarize", END)
 
 graph = workflow.compile()
 
