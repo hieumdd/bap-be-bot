@@ -3,10 +3,10 @@ from textwrap import dedent
 from langchain.schema import SystemMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
 
-from rag import chat_model
-from ziwei.ziwei_model import ZiweiInput
-from ziwei.ziwei_service import generate_ziwei_image
-from ziwei.ziwei_state import ZiweiState
+from app.core.llm import chat_model
+from app.ziwei.ziwei_model import ZiweiInput
+from app.ziwei.ziwei_service import generate_ziwei_image
+from app.ziwei.ziwei_state import ZiweiState
 
 
 def extract_input(state: ZiweiState) -> dict:

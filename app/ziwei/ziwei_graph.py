@@ -3,8 +3,8 @@ from typing import Generator
 from langchain_core.messages import HumanMessage
 from langgraph.graph import StateGraph, START, END
 
-from ziwei.ziwei_state import ZiweiState
-from ziwei.ziwei_node import (
+from app.ziwei.ziwei_state import ZiweiState
+from app.ziwei.ziwei_node import (
     extract_input,
     handle_error,
     generate_image,

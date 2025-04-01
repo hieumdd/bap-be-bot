@@ -4,7 +4,7 @@ from typing import Annotated, TypedDict
 
 from langchain.schema import AIMessage, HumanMessage
 
-from ziwei.ziwei_model import ZiweiInput
+from app.ziwei.ziwei_model import ZiweiInput
 
 
 class ZiweiState(TypedDict):

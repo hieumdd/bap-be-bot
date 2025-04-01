@@ -14,9 +14,10 @@ from pydantic import ValidationError
 from tqdm import trange
 
 from logger import get_logger
-from vectorstore import vectorstore
-from models.message import Message, MessageRepository
-from models.conversation import Conversation
+from app.rag.rag_vectorstore import vectorstore
+from app.rag.message_model import Message
+from app.rag.message_repository import message_repository
+from app.rag.conversation_model import Conversation
 
 logger = get_logger(__name__)
 
@@ -76,12 +77,9 @@ class MigrationSource(DynamicSource):
 
 
 class RedisInput(StatelessSourcePartition):
-    def __init__(self):
-        self.repository = MessageRepository()
-
     def next_batch(self):
         logger.debug("Polling from Redis")
-        messages = self.repository.read()
+        messages = message_repository.read()
         return messages
 
     def next_awake(self):
@@ -98,13 +96,12 @@ class RedisOutput(StatelessSinkPartition):
     batch_size: int = 100
 
     def __init__(self):
-        self.repository = MessageRepository()
-        self.pipe = self.repository.pipeline()
+        self.pipe = message_repository.pipeline()
 
     def write_batch(self, items: list[Message]):
         for i in trange(0, len(items), self.batch_size, desc=self.desc):
             batch_items = items[i : i + self.batch_size]
-            self.repository.write(*batch_items, pipe=self.pipe)
+            message_repository.write(*batch_items, pipe=self.pipe)
 
     def close(self):
         self.pipe.execute()
