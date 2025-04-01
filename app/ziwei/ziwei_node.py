@@ -1,3 +1,4 @@
+from io import StringIO
 from textwrap import dedent
 
 from langchain.schema import SystemMessage, AIMessage
@@ -22,7 +23,7 @@ def extract_input(state: ZiweiState) -> dict:
     human_message = HumanMessagePromptTemplate.from_template("{message}")
     prompt = ChatPromptTemplate.from_messages([system_message, human_message])
     chain = prompt | chat_model.with_structured_output(ZiweiInput)
-    input_ = chain.invoke(messages[-1].content)
+    input_: ZiweiInput = chain.invoke(messages[-1].content)
     return {"birthchart_input": input_}
 
 
@@ -49,7 +50,7 @@ def generate_image(state: ZiweiState) -> dict:
     return {"birthchart_image_b64": image_b64, "birthchart_image": image}
 
 
-def create_analyze(arc: str, arc_key: str):
+def create_analyze(arc: str, key: str):
     system_message = SystemMessage(
         content=dedent(
             """
@@ -76,7 +77,10 @@ def create_analyze(arc: str, arc_key: str):
         prompt = ChatPromptTemplate.from_messages([system_message, human_message])
         chain = prompt | chat_model
         analysis: AIMessage = chain.invoke({"arc": arc, "image": image})
-        return {"messages": state["messages"] + [analysis], arc_key: analysis.content}
+        return {
+            "messages": state["messages"] + [analysis],
+            key: analysis.content,
+        }
 
     return analyze
 
@@ -95,7 +99,29 @@ analyze_phu_the = create_analyze("Phu Thê", "analysis_phu_the")
 analyze_huynh_de = create_analyze("Huynh Đệ", "analysis_huynh_de")
 
 
-def create_summary(key: str, adjective: str):
+def write_analysis_file(state: ZiweiState):
+    analysis_file = StringIO()
+    for key in [
+        "analysis_menh",
+        "analysis_phu_mau",
+        "analysis_phuc_duc",
+        "analysis_dien_trach",
+        "analysis_quan_loc",
+        "analysis_no_boc",
+        "analysis_thien_di",
+        "analysis_tat_ach",
+        "analysis_tai_bach",
+        "analysis_tu_tuc",
+        "analysis_phu_the",
+        "analysis_huynh_de",
+    ]:
+        analysis_file.write(state[key])
+        analysis_file.write("\n\n")
+    analysis_file.seek(0)
+    return {"analysis_file": analysis_file}
+
+
+def create_summary(adjective: str, key: str):
     def summarize(state: ZiweiState) -> dict:
         system_message = SystemMessagePromptTemplate.from_template(
             dedent(
@@ -140,6 +166,15 @@ def create_summary(key: str, adjective: str):
     return summarize
 
 
-summarize_positive = create_summary("summary_positive", "tích cực")
-summarize_negative = create_summary("summary_negative", "tiêu cực")
-summarize_advice = create_summary("summary_advice", "lời khuyên")
+summarize_positive = create_summary("tích cực", "summary_positive")
+summarize_negative = create_summary("tiêu cực", "summary_negative")
+summarize_advice = create_summary("lời khuyên", "summary_advice")
+
+
+def combine_summaries(state: ZiweiState):
+    summaries = [
+        state["summary_positive"],
+        state["summary_negative"],
+        state["summary_advice"],
+    ]
+    return {"summaries": summaries}

@@ -77,26 +77,35 @@ async def ziwei_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_chat_action(ChatAction.TYPING)
     question = " ".join(context.args)
+
     for node_id, state in run_ziwei_graph(question):
         async for attempt in AsyncRetrying(wait=wait_fixed(2), stop=4, reraise=True):
             with attempt:
                 await update.message.reply_chat_action(ChatAction.TYPING)
-                if (
-                    node_id == "handle_error"
-                    or node_id == "summarize"
-                    or node_id.startswith("analyze")
-                ):
-                    await update.message.reply_text(
-                        state["messages"][-1].content[:4096],
-                        parse_mode=ParseMode.HTML,
-                    )
                 if node_id == "generate_image":
                     await update.message.reply_photo(
                         state["birthchart_image"],
                         caption="Lá số Tử Vi",
                         parse_mode=ParseMode.HTML,
                     )
-        await asyncio.sleep(0.25)
+                if node_id == "write_analysis_file":
+                    await update.message.reply_document(
+                        state["analysis_file"],
+                        filename="analysis.txt",
+                        caption="Luận giải chi tiết",
+                    )
+                if node_id == "combine_summaries":
+                    for summary in state["summaries"]:
+                        await update.message.reply_text(
+                            summary[:4096],
+                            parse_mode=ParseMode.HTML,
+                        )
+                if node_id == "handle_error":
+                    await update.message.reply_text(
+                        state["messages"][-1].content[:4096],
+                        parse_mode=ParseMode.HTML,
+                    )
+                await asyncio.sleep(0.25)
 
 
 async def on_error(update: Update, context: ContextTypes.DEFAULT_TYPE):

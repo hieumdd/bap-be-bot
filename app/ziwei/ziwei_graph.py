@@ -5,6 +5,7 @@ from langgraph.graph import StateGraph, START, END
 
 from app.ziwei.ziwei_state import ZiweiState
 from app.ziwei.ziwei_node import (
+    combine_summaries,
     extract_input,
     handle_error,
     generate_image,
@@ -20,6 +21,7 @@ from app.ziwei.ziwei_node import (
     analyze_tu_tuc,
     analyze_phu_the,
     analyze_huynh_de,
+    write_analysis_file,
     summarize_positive,
     summarize_negative,
     summarize_advice,
@@ -58,8 +60,10 @@ workflow.add_node("handle_error", handle_error)
 workflow.add_node("generate_image", generate_image)
 for node_id, node in analyze_nodes:
     workflow.add_node(node_id, node)
+workflow.add_node("write_analysis_file", write_analysis_file)
 for node_id, node in summarize_nodes:
     workflow.add_node(node_id, node)
+workflow.add_node("combine_summaries", combine_summaries)
 
 
 workflow.add_edge(START, "extract_input")
@@ -71,10 +75,12 @@ workflow.add_conditional_edges(
 workflow.add_edge("handle_error", END)
 for node_id, _ in analyze_nodes:
     workflow.add_edge("generate_image", node_id)
+    workflow.add_edge(node_id, "write_analysis_file")
     for summarize_node_id, _ in summarize_nodes:
         workflow.add_edge(node_id, summarize_node_id)
 for node_id, _ in summarize_nodes:
-    workflow.add_edge(node_id, END)
+    workflow.add_edge(node_id, "combine_summaries")
+workflow.add_edge("combine_summaries", END)
 
 graph = workflow.compile()
 
