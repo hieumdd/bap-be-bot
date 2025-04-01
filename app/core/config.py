@@ -1,9 +1,6 @@
-from functools import lru_cache
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-@lru_cache(1)
 class Config(BaseSettings):
     model_config = SettingsConfigDict()
 
