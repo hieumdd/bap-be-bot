@@ -27,6 +27,8 @@ class ZiweiState(TypedDict):
     analysis_phu_the: str | None = None
     analysis_huynh_de: str | None = None
 
-    summary: str | None = None
+    summary_positive: str | None = None
+    summary_negative: str | None = None
+    summary_advice: str | None = None
 
     error: str | None = None

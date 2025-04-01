@@ -20,7 +20,9 @@ from app.ziwei.ziwei_node import (
     analyze_tu_tuc,
     analyze_phu_the,
     analyze_huynh_de,
-    summarize,
+    summarize_positive,
+    summarize_negative,
+    summarize_advice,
 )
 
 analyze_nodes = [
@@ -37,6 +39,11 @@ analyze_nodes = [
     ("analyze_phu_the", analyze_phu_the),
     ("analyze_huynh_de", analyze_huynh_de),
 ]
+summarize_nodes = [
+    ("summarize_positive", summarize_positive),
+    ("summarize_negative", summarize_negative),
+    ("summarize_advice", summarize_advice),
+]
 
 
 def extract_input_validation(state: ZiweiState) -> str:
@@ -51,7 +58,8 @@ workflow.add_node("handle_error", handle_error)
 workflow.add_node("generate_image", generate_image)
 for node_id, node in analyze_nodes:
     workflow.add_node(node_id, node)
-workflow.add_node("summarize", summarize)
+for node_id, node in summarize_nodes:
+    workflow.add_node(node_id, node)
 
 
 workflow.add_edge(START, "extract_input")
@@ -63,8 +71,10 @@ workflow.add_conditional_edges(
 workflow.add_edge("handle_error", END)
 for node_id, _ in analyze_nodes:
     workflow.add_edge("generate_image", node_id)
-    workflow.add_edge(node_id, "summarize")
-workflow.add_edge("summarize", END)
+    for summarize_node_id, _ in summarize_nodes:
+        workflow.add_edge(node_id, summarize_node_id)
+for node_id, _ in summarize_nodes:
+    workflow.add_edge(node_id, END)
 
 graph = workflow.compile()
 
