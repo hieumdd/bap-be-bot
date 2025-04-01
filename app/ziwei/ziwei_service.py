@@ -4,7 +4,7 @@ from io import BytesIO
 from bs4 import BeautifulSoup
 import requests
 
-from ziwei.ziwei_model import ZiweiInput
+from app.ziwei.ziwei_model import ZiweiInput
 
 
 def generate_ziwei_image(ziwei_input: ZiweiInput):

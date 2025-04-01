@@ -1,27 +1,16 @@
-from functools import lru_cache
+from dataclasses import dataclass
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
 from redis.client import Pipeline
 
-from config import config
-from db import redis_client
+from app.core.config import config
+from app.core.db import redis_client
+from app.rag.message_model import Message
 
 
-class Message(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    chat_id: int
-    id: int
-    timestamp: int
-    text: str = Field(min_length=1)
-    from_: str = Field(alias="from")
-
-
-@lru_cache(1)
+@dataclass
 class MessageRepository:
-    def __init__(self):
-        self.key = config.message_repository_key
+    key: str
 
     def read(self) -> list[Message]:
         count = redis_client.llen(self.key)
@@ -39,3 +28,6 @@ class MessageRepository:
 
     def pipeline(self) -> Pipeline:
         return redis_client.pipeline()
+
+
+message_repository = MessageRepository(config.message_repository_key)
