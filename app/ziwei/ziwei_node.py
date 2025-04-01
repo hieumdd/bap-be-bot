@@ -1,7 +1,12 @@
+from io import StringIO
 from textwrap import dedent
 
 from langchain.schema import SystemMessage, AIMessage
-from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
+from langchain_core.prompts import (
+    ChatPromptTemplate,
+    HumanMessagePromptTemplate,
+    SystemMessagePromptTemplate,
+)
 
 from app.core.llm import chat_model
 from app.ziwei.ziwei_model import ZiweiInput
@@ -18,7 +23,7 @@ def extract_input(state: ZiweiState) -> dict:
     human_message = HumanMessagePromptTemplate.from_template("{message}")
     prompt = ChatPromptTemplate.from_messages([system_message, human_message])
     chain = prompt | chat_model.with_structured_output(ZiweiInput)
-    input_ = chain.invoke(messages[-1].content)
+    input_: ZiweiInput = chain.invoke(messages[-1].content)
     return {"birthchart_input": input_}
 
 
@@ -45,7 +50,7 @@ def generate_image(state: ZiweiState) -> dict:
     return {"birthchart_image_b64": image_b64, "birthchart_image": image}
 
 
-def create_analyze(arc: str, arc_key: str):
+def create_analyze(arc: str, key: str):
     system_message = SystemMessage(
         content=dedent(
             """
@@ -72,7 +77,10 @@ def create_analyze(arc: str, arc_key: str):
         prompt = ChatPromptTemplate.from_messages([system_message, human_message])
         chain = prompt | chat_model
         analysis: AIMessage = chain.invoke({"arc": arc, "image": image})
-        return {"messages": state["messages"] + [analysis], arc_key: analysis.content}
+        return {
+            "messages": state["messages"] + [analysis],
+            key: analysis.content,
+        }
 
     return analyze
 
@@ -91,19 +99,9 @@ analyze_phu_the = create_analyze("Phu Thê", "analysis_phu_the")
 analyze_huynh_de = create_analyze("Huynh Đệ", "analysis_huynh_de")
 
 
-def summarize(state: ZiweiState) -> dict:
-    system_message = SystemMessage(
-        content=dedent(
-            """
-            Bạn là một nhà chiêm tinh và chuyên gia tử vi đẩu số Việt Nam.
-            Ở tin nhắn trước bạn đã phân tích tất cả các Cung của 1 lá số của một người.
-            Hãy sử dụng ngữ cảnh được cung cấp (phân tích các Cung của lá số) để đưa ra lời khuyên tốt nhất
-            Trả lời theo bullet points, đúng 5 bullet points
-            """
-        )
-    )
-
-    keys = [
+def write_analysis_file(state: ZiweiState):
+    analysis_file = StringIO()
+    for key in [
         "analysis_menh",
         "analysis_phu_mau",
         "analysis_phuc_duc",
@@ -116,15 +114,67 @@ def summarize(state: ZiweiState) -> dict:
         "analysis_tu_tuc",
         "analysis_phu_the",
         "analysis_huynh_de",
-    ]
-    human_messages = [
-        HumanMessagePromptTemplate.from_template(f"{{{key}}}") for key in keys
-    ]
+    ]:
+        analysis_file.write(state[key])
+        analysis_file.write("\n\n")
+    analysis_file.seek(0)
+    return {"analysis_file": analysis_file}
 
-    prompt = ChatPromptTemplate.from_messages([system_message, *human_messages])
-    chain = prompt | chat_model
-    analysis: AIMessage = chain.invoke({k: state[k] for k in keys})
-    return {
-        "messages": state["messages"] + [analysis],
-        "summary": analysis.content,
-    }
+
+def create_summary(adjective: str, key: str):
+    def summarize(state: ZiweiState) -> dict:
+        system_message = SystemMessagePromptTemplate.from_template(
+            dedent(
+                """
+                Bạn là một nhà chiêm tinh và chuyên gia tử vi đẩu số Việt Nam.
+                Ở tin nhắn trước bạn đã phân tích tất cả các Cung của 1 lá số của một người.
+                Hãy sử dụng ngữ cảnh được cung cấp (phân tích các Cung của lá số)
+                Đưa ra 5 điểm {adjective} nhất, giải thích theo ngôn ngữ dễ hiểu.
+                Trả lời theo bullet points, đúng 5 bullet points
+                """
+            )
+        )
+
+        keys = [
+            "analysis_menh",
+            "analysis_phu_mau",
+            "analysis_phuc_duc",
+            "analysis_dien_trach",
+            "analysis_quan_loc",
+            "analysis_no_boc",
+            "analysis_thien_di",
+            "analysis_tat_ach",
+            "analysis_tai_bach",
+            "analysis_tu_tuc",
+            "analysis_phu_the",
+            "analysis_huynh_de",
+        ]
+        human_messages = [
+            HumanMessagePromptTemplate.from_template(f"{{{key}}}") for key in keys
+        ]
+
+        prompt = ChatPromptTemplate.from_messages([system_message, *human_messages])
+        chain = prompt | chat_model
+        analysis: AIMessage = chain.invoke(
+            {k: state[k] for k in keys} | {"adjective": adjective}
+        )
+        return {
+            "messages": state["messages"] + [analysis],
+            key: analysis.content,
+        }
+
+    return summarize
+
+
+summarize_positive = create_summary("tích cực", "summary_positive")
+summarize_negative = create_summary("tiêu cực", "summary_negative")
+summarize_advice = create_summary("lời khuyên", "summary_advice")
+
+
+def combine_summaries(state: ZiweiState):
+    summaries = [
+        state["summary_positive"],
+        state["summary_negative"],
+        state["summary_advice"],
+    ]
+    return {"summaries": summaries}

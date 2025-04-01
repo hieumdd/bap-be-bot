@@ -1,4 +1,4 @@
-from io import BytesIO
+from io import BytesIO, StringIO
 import operator
 from typing import Annotated, TypedDict
 
@@ -27,6 +27,12 @@ class ZiweiState(TypedDict):
     analysis_phu_the: str | None = None
     analysis_huynh_de: str | None = None
 
-    summary: str | None = None
+    analysis_file: StringIO | None = None
+
+    summary_positive: str | None = None
+    summary_negative: str | None = None
+    summary_advice: str | None = None
+
+    summaries: list[str] | None = None
 
     error: str | None = None
