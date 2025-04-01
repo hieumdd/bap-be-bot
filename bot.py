@@ -23,9 +23,8 @@ logger = get_logger(__name__)
 
 
 async def post_init(application: Application):
-    await application.bot.set_my_commands(
-        [("query", "Query"), ("ziwei", "Ziwei Doushu")]
-    )
+    commands = [("query", "Query"), ("ziwei", "Ziwei Doushu")]
+    await application.bot.set_my_commands(commands)
     logger.debug("Bot is running")
 
 
@@ -52,6 +51,7 @@ async def rag_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_chat_action(ChatAction.TYPING)
     question = " ".join(context.args)
+
     for _, state in run_rag_graph(question):
         for message in state["messages"][1:]:
             async for attempt in AsyncRetrying(
