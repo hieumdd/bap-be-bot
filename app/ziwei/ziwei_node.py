@@ -129,7 +129,7 @@ def create_summary(adjective: str, key: str):
                 Bạn là một nhà chiêm tinh và chuyên gia tử vi đẩu số Việt Nam.
                 Ở tin nhắn trước bạn đã phân tích tất cả các Cung của 1 lá số của một người.
                 Hãy sử dụng ngữ cảnh được cung cấp (phân tích các Cung của lá số)
-                Đưa ra 5 điểm {adjective} nhất
+                Đưa ra 5 điểm {adjective} nhất, giải thích theo ngôn ngữ dễ hiểu.
                 Trả lời theo bullet points, đúng 5 bullet points
                 """
             )
