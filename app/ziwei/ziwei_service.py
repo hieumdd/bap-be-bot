@@ -1,5 +1,6 @@
 import base64
 from io import BytesIO
+from uuid import uuid4
 
 from bs4 import BeautifulSoup
 import requests
@@ -11,7 +12,7 @@ def generate_ziwei_image(ziwei_input: ZiweiInput):
     response = requests.post(
         "https://tuvivietnam.vn/lasotuvi/ansaotuvi/",
         data={
-            "ho_ten": "Eck Xiao Lunch Bot",
+            "ho_ten": str(uuid4()),
             "loai_lich": "duong",
             "anh_mau": "1",
             "gioi_tinh": str(ziwei_input.gender),
