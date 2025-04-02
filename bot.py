@@ -1,6 +1,6 @@
 import asyncio
 
-from telegram import Update
+from telegram import InputMediaPhoto, Update
 from telegram.constants import ChatAction, ParseMode
 from telegram.ext import (
     Application,
@@ -16,6 +16,7 @@ from app.core.config import config
 from app.rag.message_model import Message
 from app.rag.message_repository import message_repository
 from app.rag.rag_graph import run_rag_graph
+from app.tarot.tarot_graph import run_tarot_graph
 from app.ziwei.ziwei_graph import run_ziwei_graph
 
 
@@ -23,7 +24,11 @@ logger = get_logger(__name__)
 
 
 async def post_init(application: Application):
-    commands = [("query", "Query"), ("ziwei", "Ziwei Doushu")]
+    commands = [
+        ("query", "Query"),
+        ("tarot", "Tarot"),
+        ("ziwei", "Ziwei Doushu"),
+    ]
     await application.bot.set_my_commands(commands)
     logger.debug("Bot is running")
 
@@ -66,6 +71,32 @@ async def rag_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         parse_mode=ParseMode.HTML,
                     )
             await asyncio.sleep(0.25)
+
+
+async def tarot_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.chat.id:
+        return
+    if not context.args:
+        await update.message.reply_text("Empty Query")
+        return
+
+    await update.message.reply_chat_action(ChatAction.TYPING)
+    question = " ".join(context.args)
+
+    for node_id, state in run_tarot_graph(question):
+        async for attempt in AsyncRetrying(wait=wait_fixed(2), stop=4):
+            with attempt:
+                await update.message.reply_chat_action(ChatAction.TYPING)
+                if node_id == "randomize_tarot_cards":
+                    ttcs = state["tarot_telling_cards"]
+                    photos = [InputMediaPhoto(ttc.image) for ttc in ttcs]
+                    await update.message.reply_media_group(photos)
+                if node_id == "analyze_card":
+                    await update.message.reply_text(
+                        state["analysis"][-1][:4096],
+                        parse_mode=ParseMode.HTML,
+                    )
+                await asyncio.sleep(0.25)
 
 
 async def ziwei_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -120,6 +151,7 @@ if __name__ == "__main__":
     text_message = filters.TEXT & ~filters.COMMAND
     application.add_handler(MessageHandler(text_message, queue_message))
     application.add_handler(CommandHandler("query", rag_answer))
+    application.add_handler(CommandHandler("tarot", tarot_answer))
     application.add_handler(CommandHandler("ziwei", ziwei_answer))
     application.add_error_handler(on_error)
 

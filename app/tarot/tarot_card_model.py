@@ -19,12 +19,15 @@ class TarotCard(BaseModel):
 
     def get_image(self) -> BytesIO:
         with open(f"./app/tarot/tarot_card_static/{self.image_path}", "rb") as f:
-            return BytesIO(f.read())
+            io = BytesIO(f.read())
+        io.seek(0)
+        return io
 
     def get_image_rev(self) -> BytesIO:
         image = Image.open(self.get_image())
         io = BytesIO()
         image.rotate(180).save(io, format="JPEG")
+        io.seek(0)
         return io
 
 

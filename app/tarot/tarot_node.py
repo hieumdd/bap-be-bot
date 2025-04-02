@@ -31,7 +31,6 @@ def analyze_card(state: TarotAnalyzeState):
             Bạn là một nhà chiêm tinh và chuyên gia Tarot. Sử dụng lá Tarot và câu hỏi của người dùng, hãy phân tích và đưa ra những nhận định.
             Ngoài ra không đưa ra thông tin gì thêm
             Đưa ra Kết quả phân tích theo định dạng
-            Câu hỏi: <câu hỏi>
             Lá bài: <lá bài>
             Phân tích: <phân tích>
             """

@@ -23,7 +23,6 @@ workflow = StateGraph(TarotState)
 workflow.add_node("randomize_tarot_cards", randomize_tarot_cards)
 workflow.add_node("analyze_card", analyze_card)
 
-
 workflow.add_edge(START, "randomize_tarot_cards")
 workflow.add_conditional_edges(
     "randomize_tarot_cards",
