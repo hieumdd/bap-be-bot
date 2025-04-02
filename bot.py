@@ -96,6 +96,12 @@ async def tarot_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         state["analysis"][-1][:4096],
                         parse_mode=ParseMode.HTML,
                     )
+                if node_id == "summarize":
+                    await update.message.reply_text(
+                        state["summary"],
+                        parse_mode=ParseMode.HTML,
+                    )
+
                 await asyncio.sleep(0.25)
 
 

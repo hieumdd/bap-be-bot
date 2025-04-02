@@ -1,7 +1,7 @@
 import random
 from textwrap import dedent
 
-from langchain.schema import SystemMessage
+from langchain.schema import AIMessage, HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
 
 from app.core.llm import chat_model
@@ -51,7 +51,7 @@ def analyze_card(state: TarotAnalyzeState):
     messages = [system_message, tarot_human_message, question_human_message]
     prompt = ChatPromptTemplate.from_messages(messages)
     chain = prompt | chat_model
-    analysis = chain.invoke(
+    analysis: AIMessage = chain.invoke(
         {
             "question": state["question"],
             "tarot_telling_card_name": state["tarot_telling_card"].name,
@@ -60,3 +60,27 @@ def analyze_card(state: TarotAnalyzeState):
         }
     )
     return {"messages": [analysis], "analysis": [analysis.content]}
+
+
+def summarize(state: TarotState) -> dict:
+    system_message = SystemMessage(
+        content=dedent(
+            """
+            Bạn là một nhà chiêm tinh và chuyên gia Tarot.
+            Ở tin nhắn trước bạn những lá Tarot ngẫu nhiên của một người.
+            Hãy sử dụng ngữ cảnh được cung cấp (câu hỏi của người dùng & phân tích các lá Tarot)
+            Đưa ra 5 điểm đáng chú ý nhất, giải thích theo ngôn ngữ dễ hiểu.
+            Trả lời theo bullet points, đúng 5 bullet points
+            """
+        )
+    )
+    human_question_message = HumanMessagePromptTemplate.from_template(
+        "Câu hỏi: {question}"
+    )
+    analysis_human_messages = [HumanMessage(content=a) for a in state["analysis"]]
+    messages = [system_message, human_question_message, *analysis_human_messages]
+
+    prompt = ChatPromptTemplate.from_messages(messages)
+    chain = prompt | chat_model
+    summary: AIMessage = chain.invoke({"question": state["messages"][0].content})
+    return {"messages": [summary], "summary": summary.content}

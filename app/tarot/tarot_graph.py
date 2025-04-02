@@ -5,7 +5,7 @@ from langgraph.types import Send
 from langgraph.graph import StateGraph, START, END
 
 from app.tarot.tarot_state import TarotState
-from app.tarot.tarot_node import randomize_tarot_cards, analyze_card
+from app.tarot.tarot_node import randomize_tarot_cards, analyze_card, summarize
 
 
 def map_analyze_card(state: TarotState):
@@ -22,6 +22,7 @@ workflow = StateGraph(TarotState)
 
 workflow.add_node("randomize_tarot_cards", randomize_tarot_cards)
 workflow.add_node("analyze_card", analyze_card)
+workflow.add_node("summarize", summarize)
 
 workflow.add_edge(START, "randomize_tarot_cards")
 workflow.add_conditional_edges(
@@ -29,7 +30,8 @@ workflow.add_conditional_edges(
     map_analyze_card,
     ["analyze_card"],
 )
-workflow.add_edge("analyze_card", END)
+workflow.add_edge("analyze_card", "summarize")
+workflow.add_edge("summarize", END)
 
 graph = workflow.compile()
 
