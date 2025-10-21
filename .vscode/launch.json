@@ -2,25 +2,18 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug: Bot",
+            "name": "Debug: Telegram Bot",
             "type": "debugpy",
             "request": "launch",
-            "program": "bot.py",
+            "module": "app.bot.telegram",
             "console": "integratedTerminal"
         },
         {
-            "name": "Debug: Streaming Migrate",
+            "name": "Debug: Discord Bot",
             "type": "debugpy",
             "request": "launch",
-            "module": "bytewax.run",
-            "args": "streaming:migrate",
-        },
-        {
-            "name": "Debug: Streaming Embed",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "bytewax.run",
-            "args": "streaming:embed",
+            "module": "app.bot.discord",
+            "console": "integratedTerminal"
         },
     ],
 }
