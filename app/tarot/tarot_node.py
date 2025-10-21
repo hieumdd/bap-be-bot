@@ -5,6 +5,7 @@ from langchain.schema import AIMessage, HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
 from langgraph.types import Send
 
+from app.bot.message import ImageAlbumMessage, TextMessage
 from app.core.chat_model import ChatModelService
 from app.tarot.tarot_state import TarotTellingState, TarotCardAnalyzeState
 from app.tarot.tarot_card_model import TarotCardVariant, tarot_cards
@@ -21,7 +22,8 @@ class RandomizeTarotCards:
         for tarot_card in random.sample(tarot_cards, self.count):
             tc = tarot_card.variants[random.choice([0, 1])]
             tcs.append(tc)
-        return TarotTellingState(tarot_cards=tcs)
+        bot_messages = [ImageAlbumMessage(caption=f"{self.count} lá Tarot", images=[tc.image for tc in tcs])]
+        return TarotTellingState(tarot_cards=tcs, bot_messages=bot_messages)
 
 
 class MapTarotCards:
@@ -65,7 +67,7 @@ class AnalyzeTarotCard:
 
     def __call__(self, state: TarotCardAnalyzeState):
         chain = self.prompt | self.chat_model
-        analysis: AIMessage = chain.invoke(
+        message: AIMessage = chain.invoke(
             {
                 "question": state["question"],
                 "tarot_card_name": state["tarot_card"].parent.name,
@@ -73,7 +75,7 @@ class AnalyzeTarotCard:
                 "tarot_card_meaning": state["tarot_card"].meaning,
             }
         )
-        return TarotTellingState(messages=[analysis], analysis=[analysis.content])
+        return TarotTellingState(messages=[message], bot_messages=[TextMessage(message.content)])
 
 
 class SummarizeTarotCards:
@@ -96,7 +98,7 @@ class SummarizeTarotCards:
         self.chat_model = chat_model_service.chat_model
 
     def __call__(self, state: TarotTellingState):
-        self.prompt.extend([HumanMessage(content=a) for a in state["analysis"]])
+        self.prompt.extend([HumanMessage(content=m.content) for m in state["messages"] if isinstance(m, AIMessage)])
         chain = self.prompt | self.chat_model
-        summary: AIMessage = chain.invoke({"question": state["messages"][0].content})
-        return TarotTellingState(message=[summary], summary=summary.content)
+        message: AIMessage = chain.invoke({"question": state["messages"][0].content})
+        return TarotTellingState(message=[message], bot_messages=[TextMessage(message.content)])
