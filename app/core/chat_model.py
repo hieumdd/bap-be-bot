@@ -1,3 +1,4 @@
+from abc import ABC
 from langchain_google_genai import ChatGoogleGenerativeAI, HarmCategory, HarmBlockThreshold
 
 from app.core.settings import Settings
@@ -19,3 +20,10 @@ class ChatModelService:
             safety_settings=safety_settings,
             google_api_key=settings.google_api_key,
         )
+
+
+class ChatModelNode(ABC):
+    chat_model_service: ChatModelService
+
+    def __init__(self, chat_model_service: ChatModelService):
+        self.chat_model_service = chat_model_service

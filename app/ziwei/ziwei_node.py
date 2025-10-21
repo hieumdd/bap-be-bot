@@ -1,56 +1,74 @@
 from io import StringIO
 from textwrap import dedent
+from typing import Callable
 
 from langchain.schema import SystemMessage, AIMessage
-from langchain_core.prompts import (
-    ChatPromptTemplate,
-    HumanMessagePromptTemplate,
-    SystemMessagePromptTemplate,
-)
+from langgraph.types import Send
+from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
 
-from app.core.llm import chat_model
-from app.ziwei.ziwei_model import ZiweiInput
-from app.ziwei.ziwei_service import generate_ziwei_image
-from app.ziwei.ziwei_state import ZiweiState
+from app.bot.message import FileMessage, TextMessage
+from app.core.chat_model import ChatModelService, ChatModelNode
+from app.ziwei.ziwei_model import ZiweiArcAnalysis, ZiweiBirthchart
+from app.ziwei.ziwei_state import ZiweiArcAnalysisState, ZiweiTellingState, ZiweiSummaryState
 
 
-def extract_input(state: ZiweiState) -> dict:
-    """Use LLM to extract birthdate, time, and gender from the user input in Vietnamese"""
-    messages = state["messages"]
-    system_message = SystemMessage(
-        content="Parse the following Vietnamese date and time and gender"
-    )
+class ExtractZiweiBirthchart(ChatModelNode):
+    chat_model_service: ChatModelService
+    system_message = SystemMessage(content="Parse the following Vietnamese date and time and gender")
     human_message = HumanMessagePromptTemplate.from_template("{message}")
     prompt = ChatPromptTemplate.from_messages([system_message, human_message])
-    chain = prompt | chat_model.with_structured_output(ZiweiInput)
-    input_: ZiweiInput = chain.invoke(messages[-1].content)
-    return {"birthchart_input": input_}
+
+    def __call__(self, state: ZiweiTellingState):
+        chain = self.prompt | self.chat_model_service.chat_model.with_structured_output(ZiweiBirthchart)
+        birthchart: ZiweiBirthchart = chain.invoke(state["messages"][-1].content)
+        return ZiweiTellingState(birthchart=birthchart)
 
 
-def handle_error(state: ZiweiState) -> dict:
-    """Handle error when input extraction fails"""
-    error_message = AIMessage(
-        content=dedent(
-            """
-            Xin lỗi, tôi không thể hiểu được thông tin ngày sinh của bạn.
-            Vui lòng cung cấp ngày sinh theo định dạng: ngày/tháng/năm giờ:phút và giới tính của bạn.
-            """
-        )
-    )
-    return {
-        "messages": state["messages"] + [error_message],
-        "error": "Input extraction failed",
-    }
+class ValidateZiweiBirthchart:
+    success_node: Callable
+    error_node_id: str
+
+    def __init__(self, success_node: Callable, error_node_id: str):
+        self.success_node = success_node
+        self.error_node_id = error_node_id
+
+    def __call__(self, state: ZiweiTellingState):
+        if state["birthchart"].error:
+            return self.error_node_id
+        return self.success_node(state)
 
 
-def generate_image(state: ZiweiState) -> dict:
-    """Generate birth chart image based on birthdate and gender"""
-    ziwei_input = state["birthchart_input"]
-    image_b64, image = generate_ziwei_image(ziwei_input)
-    return {"birthchart_image_b64": image_b64, "birthchart_image": image}
+class HandleZiweiBirthchartError:
+    def __call__(self, _: ZiweiTellingState):
+        content = "Xin lỗi, tôi không thể hiểu được thông tin ngày sinh của bạn.\nVui lòng cung cấp ngày sinh theo định dạng: ngày/tháng/năm giờ:phút và giới tính của bạn."
+        return ZiweiTellingState(messages=[AIMessage(content=content)], bot_messages=[TextMessage(content)])
 
 
-def create_analyze(arc: str, key: str):
+class MapAnalyzeZiweiArcs:
+    node_id: str
+    arcs = [
+        "Mệnh",
+        "Phụ Mẫu",
+        "Phúc Đức",
+        "Điền Trạch",
+        "Quan Lộc",
+        "Nô Bộc",
+        "Thiên Di",
+        "Tật Ách",
+        "Tài Bạch",
+        "Tử Tức",
+        "Phu Thê",
+        "Huynh Đệ",
+    ]
+
+    def __init__(self, node_id: str):
+        self.node_id = node_id
+
+    def __call__(self, state: ZiweiTellingState):
+        return [Send(self.node_id, ZiweiArcAnalysisState(birthchart=state["birthchart"], arc=arc)) for arc in self.arcs]
+
+
+class AnalyzeZiweiArc(ChatModelNode):
     system_message = SystemMessage(
         content=dedent(
             """
@@ -70,111 +88,58 @@ def create_analyze(arc: str, key: str):
             {"type": "image_url", "image_url": "{image}"},
         ]
     )
+    prompt = ChatPromptTemplate.from_messages([system_message, human_message])
 
-    def analyze(state: ZiweiState) -> dict:
-        """Let the LLM perform analysis using the image as context"""
-        image = state["birthchart_image_b64"]
-        prompt = ChatPromptTemplate.from_messages([system_message, human_message])
-        chain = prompt | chat_model
-        analysis: AIMessage = chain.invoke({"arc": arc, "image": image})
-        return {
-            "messages": state["messages"] + [analysis],
-            key: analysis.content,
-        }
-
-    return analyze
+    def __call__(self, state: ZiweiArcAnalysisState):
+        arc = state["arc"]
+        chain = self.prompt | self.chat_model_service.chat_model
+        message: AIMessage = chain.invoke({"arc": state["arc"], "image": state["birthchart"].image_b64})
+        return ZiweiTellingState(messages=[message], analyses=[ZiweiArcAnalysis(arc=arc, analysis=message.content)])
 
 
-analyze_menh = create_analyze("Mệnh", "analysis_menh")
-analyze_phu_mau = create_analyze("Phụ Mẫu", "analysis_phu_mau")
-analyze_phuc_duc = create_analyze("Phúc Đức", "analysis_phuc_duc")
-analyze_dien_trach = create_analyze("Điền Trạch", "analysis_dien_trach")
-analyze_quan_loc = create_analyze("Quan Lộc", "analysis_quan_loc")
-analyze_no_boc = create_analyze("Nô Bộc", "analysis_no_boc")
-analyze_thien_di = create_analyze("Thiên Di", "analysis_thien_di")
-analyze_tat_ach = create_analyze("Tật Ách", "analysis_tat_ach")
-analyze_tai_bach = create_analyze("Tài Bạch", "analysis_tai_bach")
-analyze_tu_tuc = create_analyze("Tử Tức", "analysis_tu_tuc")
-analyze_phu_the = create_analyze("Phu Thê", "analysis_phu_the")
-analyze_huynh_de = create_analyze("Huynh Đệ", "analysis_huynh_de")
+class DumpZiweiArcAnalysis:
+    def __call__(self, state: ZiweiTellingState):
+        fo = StringIO()
+        for analysis in state["analyses"]:
+            fo.write(analysis.analysis)
+            fo.write("\n\n")
+        fo.seek(0)
+        return ZiweiTellingState(analysis_file=fo, bot_messages=[FileMessage("Luận giải chi tiết", "ziwei.txt", fo)])
 
 
-def write_analysis_file(state: ZiweiState):
-    analysis_file = StringIO()
-    for key in [
-        "analysis_menh",
-        "analysis_phu_mau",
-        "analysis_phuc_duc",
-        "analysis_dien_trach",
-        "analysis_quan_loc",
-        "analysis_no_boc",
-        "analysis_thien_di",
-        "analysis_tat_ach",
-        "analysis_tai_bach",
-        "analysis_tu_tuc",
-        "analysis_phu_the",
-        "analysis_huynh_de",
-    ]:
-        analysis_file.write(state[key])
-        analysis_file.write("\n\n")
-    analysis_file.seek(0)
-    return {"analysis_file": analysis_file}
-
-
-def create_summary(adjective: str, key: str):
-    def summarize(state: ZiweiState) -> dict:
-        system_message = SystemMessagePromptTemplate.from_template(
-            dedent(
-                """
-                Bạn là một nhà chiêm tinh và chuyên gia tử vi đẩu số Việt Nam.
-                Ở tin nhắn trước bạn đã phân tích tất cả các Cung của 1 lá số của một người.
-                Hãy sử dụng ngữ cảnh được cung cấp (phân tích các Cung của lá số)
-                Đưa ra 5 điểm {adjective} nhất, giải thích theo ngôn ngữ dễ hiểu.
-                Trả lời theo bullet points, đúng 5 bullet points
-                """
-            )
-        )
-
-        keys = [
-            "analysis_menh",
-            "analysis_phu_mau",
-            "analysis_phuc_duc",
-            "analysis_dien_trach",
-            "analysis_quan_loc",
-            "analysis_no_boc",
-            "analysis_thien_di",
-            "analysis_tat_ach",
-            "analysis_tai_bach",
-            "analysis_tu_tuc",
-            "analysis_phu_the",
-            "analysis_huynh_de",
-        ]
-        human_messages = [
-            HumanMessagePromptTemplate.from_template(f"{{{key}}}") for key in keys
-        ]
-
-        prompt = ChatPromptTemplate.from_messages([system_message, *human_messages])
-        chain = prompt | chat_model
-        analysis: AIMessage = chain.invoke(
-            {k: state[k] for k in keys} | {"adjective": adjective}
-        )
-        return {
-            "messages": state["messages"] + [analysis],
-            key: analysis.content,
-        }
-
-    return summarize
-
-
-summarize_positive = create_summary("tích cực", "summary_positive")
-summarize_negative = create_summary("tiêu cực", "summary_negative")
-summarize_advice = create_summary("lời khuyên", "summary_advice")
-
-
-def combine_summaries(state: ZiweiState):
-    summaries = [
-        state["summary_positive"],
-        state["summary_negative"],
-        state["summary_advice"],
+class MapSummarizeZiwei:
+    node_id: str
+    sentiments: list[str] = [
+        "tích cực",
+        "tiêu cực",
+        "lời khuyên",
     ]
-    return {"summaries": summaries}
+
+    def __init__(self, node_id: str):
+        self.node_id = node_id
+
+    def __call__(self, state: ZiweiTellingState):
+        return [Send(self.node_id, ZiweiSummaryState(analyses=state["analyses"], sentiment=sentiment)) for sentiment in self.sentiments]
+
+
+class SummarizeZiwei(ChatModelNode):
+    system_message = SystemMessagePromptTemplate.from_template(
+        dedent(
+            """
+            Bạn là một nhà chiêm tinh và chuyên gia tử vi đẩu số Việt Nam.
+            Ở tin nhắn trước bạn đã phân tích tất cả các Cung của 1 lá số của một người.
+            Hãy sử dụng ngữ cảnh được cung cấp (phân tích các Cung của lá số)
+            Đưa ra 5 điểm {sentiment} nhất, giải thích theo ngôn ngữ dễ hiểu.
+            Trả lời theo bullet points, đúng 5 bullet points
+            """
+        )
+    )
+    prompt = ChatPromptTemplate.from_messages([system_message])
+
+    def __call__(self, state: ZiweiSummaryState):
+        for analysis in state["analyses"]:
+            human_message = HumanMessagePromptTemplate.from_template(analysis.analysis)
+            self.prompt.extend([human_message])
+        chain = self.prompt | self.chat_model_service.chat_model
+        message: AIMessage = chain.invoke({"sentiment": state["sentiment"]})
+        return ZiweiTellingState(messages=[message], summaries=[message.content], bot_messages=[TextMessage(message.content)])

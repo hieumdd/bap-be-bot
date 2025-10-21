@@ -3,21 +3,25 @@ from langgraph.graph import StateGraph, START, END
 
 from app.core.chat_model import ChatModelService
 from app.tarot.tarot_state import TarotTellingState
-from app.tarot.tarot_node import RandomizeTarotCards, MapTarotCards, AnalyzeTarotCard, SummarizeTarotCards
+from app.tarot.tarot_node import RandomizeTarotCards, MapAnalyzeTarotCards, AnalyzeTarotCard, SummarizeTarotCards
 
 
 class TarotGraphService:
     def __init__(self, chat_model_service: ChatModelService):
         workflow = StateGraph(TarotTellingState)
 
-        workflow.add_node("RandomizeTarotCards", RandomizeTarotCards())
-        workflow.add_node("AnalyzeTarotCard", AnalyzeTarotCard(chat_model_service))
-        workflow.add_node("SummarizeTarotCards", SummarizeTarotCards(chat_model_service))
+        workflow.add_node(RandomizeTarotCards.__name__, RandomizeTarotCards())
+        workflow.add_node(AnalyzeTarotCard.__name__, AnalyzeTarotCard(chat_model_service))
+        workflow.add_node(SummarizeTarotCards.__name__, SummarizeTarotCards(chat_model_service))
 
-        workflow.add_edge(START, "RandomizeTarotCards")
-        workflow.add_conditional_edges("RandomizeTarotCards", MapTarotCards("AnalyzeTarotCard"), ["AnalyzeTarotCard"])
-        workflow.add_edge("AnalyzeTarotCard", "SummarizeTarotCards")
-        workflow.add_edge("SummarizeTarotCards", END)
+        workflow.add_edge(START, RandomizeTarotCards.__name__)
+        workflow.add_conditional_edges(
+            RandomizeTarotCards.__name__,
+            MapAnalyzeTarotCards(AnalyzeTarotCard.__name__),
+            [AnalyzeTarotCard.__name__],
+        )
+        workflow.add_edge(AnalyzeTarotCard.__name__, SummarizeTarotCards.__name__)
+        workflow.add_edge(SummarizeTarotCards.__name__, END)
 
         self.graph = workflow.compile()
 

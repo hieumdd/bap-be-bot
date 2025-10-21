@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import io
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from telegram import InputMediaPhoto, Update
 from tenacity import retry, stop_after_attempt, wait_fixed
@@ -10,6 +10,7 @@ def with_retry():
     return retry(wait=wait_fixed(1), stop=stop_after_attempt(3))
 
 
+@runtime_checkable
 class TelegramMessage(Protocol):
     async def reply_telegram(self, update: Update) -> None:
         pass
@@ -19,7 +20,7 @@ class TelegramMessage(Protocol):
 class TextMessage(TelegramMessage):
     html: str
 
-    @with_retry
+    @with_retry()
     async def reply_telegram(self, update):
         await update.message.reply_text(text=self.html[:4096])
 
@@ -29,7 +30,7 @@ class ImageMessage(TelegramMessage):
     caption: str
     image: io.BytesIO
 
-    @with_retry
+    @with_retry()
     async def reply_telegram(self, update):
         await update.message.reply_photo(photo=self.image, caption=self.caption[:4096])
 
@@ -39,7 +40,7 @@ class ImageAlbumMessage(TelegramMessage):
     caption: str
     images: list[io.BytesIO]
 
-    @with_retry
+    @with_retry()
     async def reply_telegram(self, update):
         medias = [InputMediaPhoto(image) for image in self.images]
         await update.message.reply_media_group(media=medias, caption=self.caption[:4096])
@@ -51,6 +52,6 @@ class FileMessage(TelegramMessage):
     filename: str
     file_: io.BytesIO
 
-    @with_retry
+    @with_retry()
     async def reply_telegram(self, update):
         await update.message.reply_document(document=self.file_, filename=self.filename, caption=self.caption)
