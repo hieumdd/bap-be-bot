@@ -1,77 +1,31 @@
-x-environment: &environment
-    - QDRANT_URL=http://qdrant:6333
-    - REDIS_URL=redis://redis:6379/0
-
 services:
-    base-image:
+    base:
         platform: ${PLATFORM:-linux/arm64}
         image: hieumdd/bap-be-bot
         build: .
         container_name: bap-be-bot-base
-        command: ['echo', 'Build Completed']
+        command: ["echo", "Build Completed"]
 
-    streaming-migrate:
+    telegram-bot:
         image: hieumdd/bap-be-bot
         depends_on:
-            - base-image
-            - redis
-            - qdrant
-        container_name: bap-be-bot-streaming-migrate
-        volumes:
-            - ./migrations:/app/migrations
-        entrypoint: ['python', '-m', 'bytewax.run', 'streaming:migrate']
-        environment: *environment
+            - base
+        container_name: bap-be-bot-telegram
+        entrypoint: ["python", "-m", "app.bot.telegram"]
         env_file: .env
         networks:
             - bap-be-bot
 
-    streaming-embed:
+    discord-bot:
         image: hieumdd/bap-be-bot
         depends_on:
-            - base-image
-            - redis
-            - qdrant
-        container_name: bap-be-bot-streaming-embed
-        entrypoint: ['python', '-m', 'bytewax.run', 'streaming:embed']
-        environment: *environment
+            - base
+        container_name: bap-be-bot-discord
+        entrypoint: ["python", "-m", "app.bot.discord"]
         env_file: .env
         networks:
             - bap-be-bot
 
-    bot:
-        image: hieumdd/bap-be-bot
-        depends_on:
-            - base-image
-            - redis
-            - qdrant
-        container_name: bap-be-bot-bot
-        entrypoint: ['python', 'bot.py']
-        environment: *environment
-        env_file: .env
-        networks:
-            - bap-be-bot
-
-    qdrant:
-        image: qdrant/qdrant
-        container_name: bot-bap-be-qdrant
-        ports:
-            - 6333:6333
-            - 6334:6334
-        volumes:
-            - ./qdrant-data:/qdrant/storage:z
-        networks:
-            - bap-be-bot
-
-    redis:
-        image: redis:7
-        container_name: bot-bap-be-redis
-        ports:
-            - 6379:6379
-        command: redis-server --save 20 1
-        volumes:
-            - ./redis-data:/data
-        networks:
-            - bap-be-bot
 
     watchtower:
         image: containrrr/watchtower
