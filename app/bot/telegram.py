@@ -1,7 +1,7 @@
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-from logger import get_logger
+from app.core.logger import get_logger
 from app.core.settings import Settings
 from app.core.chat_model import ChatModelService
 from app.tarot.tarot_handler import TAROT_COMMAND, TAROT_DESCRIPTION, TarotHandler
@@ -23,6 +23,7 @@ async def post_init(application: Application):
 async def on_error(update: Update, context: ContextTypes.DEFAULT_TYPE):
     error = context.error
     logger.error(error)
+    await update.message.reply_text("Unknown Error Ocurred")
 
 
 if __name__ == "__main__":

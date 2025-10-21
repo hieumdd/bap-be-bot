@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 
-from logger import get_logger
+from app.core.logger import get_logger
 from app.core.settings import Settings
 from app.core.chat_model import ChatModelService
 from app.tarot.tarot_handler import TAROT_COMMAND, TarotHandler
@@ -34,7 +34,7 @@ async def ziwei_command(ctx, *, question: str = None):
 @bot.event
 async def on_command_error(ctx, error):
     logger.error(error)
-    await ctx.send(f"An error occurred: {str(error)}")
+    await ctx.send("Unknown Error Ocurred")
 
 
 if __name__ == "__main__":
