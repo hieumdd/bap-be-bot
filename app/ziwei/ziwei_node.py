@@ -1,12 +1,11 @@
 from io import StringIO
 from textwrap import dedent
-from typing import Callable
 
 from langchain.schema import SystemMessage, AIMessage
 from langgraph.types import Send
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
 
-from app.bot.message import FileMessage, TextMessage
+from app.bot.message import FileMessage, ImageMessage, TextMessage
 from app.core.chat_model import ChatModelService, ChatModelNode
 from app.ziwei.ziwei_model import ZiweiArcAnalysis, ZiweiBirthchart
 from app.ziwei.ziwei_state import ZiweiArcAnalysisState, ZiweiTellingState, ZiweiSummaryState
@@ -25,23 +24,19 @@ class ExtractZiweiBirthchart(ChatModelNode):
 
 
 class ValidateZiweiBirthchart:
-    success_node: Callable
-    error_node_id: str
-
-    def __init__(self, success_node: Callable, error_node_id: str):
-        self.success_node = success_node
-        self.error_node_id = error_node_id
-
     def __call__(self, state: ZiweiTellingState):
-        if state["birthchart"].error:
-            return self.error_node_id
-        return self.success_node(state)
+        return state["birthchart"].error
 
 
 class HandleZiweiBirthchartError:
     def __call__(self, _: ZiweiTellingState):
         content = "Xin lỗi, tôi không thể hiểu được thông tin ngày sinh của bạn.\nVui lòng cung cấp ngày sinh theo định dạng: ngày/tháng/năm giờ:phút và giới tính của bạn."
         return ZiweiTellingState(messages=[AIMessage(content=content)], bot_messages=[TextMessage(content)])
+
+
+class DumpZiweiBirthchartImage:
+    def __call__(self, state: ZiweiTellingState):
+        return ZiweiTellingState(bot_messages=[ImageMessage("Lá số Tử Vi", state["birthchart"].image)])
 
 
 class MapAnalyzeZiweiArcs:

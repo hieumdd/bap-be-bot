@@ -8,6 +8,7 @@ from app.ziwei.ziwei_node import (
     MapAnalyzeZiweiArcs,
     ValidateZiweiBirthchart,
     HandleZiweiBirthchartError,
+    DumpZiweiBirthchartImage,
     AnalyzeZiweiArc,
     DumpZiweiArcAnalysis,
     MapSummarizeZiwei,
@@ -21,6 +22,7 @@ class ZiweiGraphService:
 
         workflow.add_node(ExtractZiweiBirthchart.__name__, ExtractZiweiBirthchart(chat_model_service))
         workflow.add_node(HandleZiweiBirthchartError.__name__, HandleZiweiBirthchartError())
+        workflow.add_node(DumpZiweiBirthchartImage.__name__, DumpZiweiBirthchartImage())
         workflow.add_node(AnalyzeZiweiArc.__name__, AnalyzeZiweiArc(chat_model_service))
         workflow.add_node(DumpZiweiArcAnalysis.__name__, DumpZiweiArcAnalysis())
         workflow.add_node(SummarizeZiwei.__name__, SummarizeZiwei(chat_model_service))
@@ -29,14 +31,19 @@ class ZiweiGraphService:
 
         workflow.add_conditional_edges(
             ExtractZiweiBirthchart.__name__,
-            ValidateZiweiBirthchart(MapAnalyzeZiweiArcs(AnalyzeZiweiArc.__name__), HandleZiweiBirthchartError.__name__),
-            [HandleZiweiBirthchartError.__name__, AnalyzeZiweiArc.__name__],
+            ValidateZiweiBirthchart(),
+            {True: HandleZiweiBirthchartError.__name__, False: DumpZiweiBirthchartImage.__name__},
         )
         workflow.add_edge(HandleZiweiBirthchartError.__name__, END)
 
+        workflow.add_conditional_edges(
+            DumpZiweiBirthchartImage.__name__,
+            MapAnalyzeZiweiArcs(AnalyzeZiweiArc.__name__),
+            [AnalyzeZiweiArc.__name__],
+        )
         workflow.add_edge(AnalyzeZiweiArc.__name__, DumpZiweiArcAnalysis.__name__)
         workflow.add_conditional_edges(
-            AnalyzeZiweiArc.__name__,
+            DumpZiweiArcAnalysis.__name__,
             MapSummarizeZiwei(SummarizeZiwei.__name__),
             [SummarizeZiwei.__name__],
         )
