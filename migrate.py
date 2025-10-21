@@ -1,4 +1,4 @@
-from app.core.config import config
+from app.core.settings import config
 from app.core.db import qdrant_client
 
 from logger import get_logger

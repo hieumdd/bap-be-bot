@@ -41,3 +41,6 @@ explicit = true
 [tool.pytest.ini_options]
 addopts = "-s --durations=0"
 python_files = ["*_test.py"]
+
+[tool.ruff]
+line-length = 140

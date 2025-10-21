@@ -3,7 +3,7 @@ from typing import Optional
 
 from redis.client import Pipeline
 
-from app.core.config import config
+from app.core.settings import config
 from app.core.db import redis_client
 from app.rag.message_model import Message
 

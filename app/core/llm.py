@@ -4,7 +4,7 @@ from langchain_google_genai import (
     HarmBlockThreshold,
 )
 
-from app.core.config import config
+from app.core.settings import config
 
 chat_model = ChatGoogleGenerativeAI(
     model="gemini-2.0-flash",

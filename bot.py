@@ -12,7 +12,7 @@ from telegram.ext import (
 from tenacity import AsyncRetrying, wait_fixed
 
 from logger import get_logger
-from app.core.config import config
+from app.core.settings import config
 from app.rag.message_model import Message
 from app.rag.message_repository import message_repository
 from app.rag.rag_graph import run_rag_graph

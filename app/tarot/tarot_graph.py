@@ -1,44 +1,29 @@
-from typing import Generator
-
 from langchain_core.messages import HumanMessage
-from langgraph.types import Send
 from langgraph.graph import StateGraph, START, END
 
-from app.tarot.tarot_state import TarotState
-from app.tarot.tarot_node import randomize_tarot_cards, analyze_card, summarize
+from app.core.chat_model import ChatModelService
+from app.tarot.tarot_state import TarotTellingState
+from app.tarot.tarot_node import RandomizeTarotCards, MapTarotCards, AnalyzeTarotCard, SummarizeTarotCards
 
 
-def map_analyze_card(state: TarotState):
-    return [
-        Send(
-            "analyze_card",
-            {"question": state["messages"][0].content, "tarot_telling_card": ttc},
-        )
-        for ttc in state["tarot_telling_cards"]
-    ]
+class TarotGraphService:
+    def __init__(self, chat_model_service: ChatModelService):
+        workflow = StateGraph(TarotTellingState)
 
+        workflow.add_node("RandomizeTarotCards", RandomizeTarotCards())
+        workflow.add_node("AnalyzeTarotCard", AnalyzeTarotCard(chat_model_service))
+        workflow.add_node("SummarizeTarotCards", SummarizeTarotCards(chat_model_service))
 
-workflow = StateGraph(TarotState)
+        workflow.add_edge(START, "RandomizeTarotCards")
+        workflow.add_conditional_edges("RandomizeTarotCards", MapTarotCards("AnalyzeTarotCard"), ["AnalyzeTarotCard"])
+        workflow.add_edge("AnalyzeTarotCard", "SummarizeTarotCards")
+        workflow.add_edge("SummarizeTarotCards", END)
 
-workflow.add_node("randomize_tarot_cards", randomize_tarot_cards)
-workflow.add_node("analyze_card", analyze_card)
-workflow.add_node("summarize", summarize)
+        self.graph = workflow.compile()
 
-workflow.add_edge(START, "randomize_tarot_cards")
-workflow.add_conditional_edges(
-    "randomize_tarot_cards",
-    map_analyze_card,
-    ["analyze_card"],
-)
-workflow.add_edge("analyze_card", "summarize")
-workflow.add_edge("summarize", END)
-
-graph = workflow.compile()
-
-
-def run_tarot_graph(question: str) -> Generator[tuple[str, TarotState], None, None]:
-    initial_state = TarotState(messages=[HumanMessage(content=question)])
-    state: dict[str, TarotState]
-    for state in graph.stream(initial_state):
-        for node_id, state_value in state.items():
-            yield (node_id, state_value)
+    def run(self, question: str):
+        initial_state = TarotTellingState(messages=[HumanMessage(content=question)])
+        state: dict[str, TarotTellingState]
+        for state in self.graph.stream(initial_state):
+            for node_id, state_value in state.items():
+                yield (node_id, state_value)
