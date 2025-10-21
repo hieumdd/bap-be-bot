@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import io
 from typing import Protocol, runtime_checkable
 
+from discord.ext.commands.context import Context
 from telegram import InputMediaPhoto, Update
 from tenacity import retry, stop_after_attempt, wait_fixed
 
@@ -14,6 +15,17 @@ def with_retry():
 class TelegramMessage(Protocol):
     async def reply_telegram(self, update: Update) -> None:
         pass
+
+
+@runtime_checkable
+class DiscordMessage(Protocol):
+    async def reply_discord(self, ctx: Context) -> None:
+        pass
+
+
+@runtime_checkable
+class BotMessage(TelegramMessage, DiscordMessage, Protocol):
+    pass
 
 
 @dataclass

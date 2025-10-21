@@ -7,6 +7,9 @@ from telegram.ext import ContextTypes
 from app.core.chat_model import ChatModelService
 from app.ziwei.ziwei_graph import ZiweiGraphService
 
+ZIWEI_COMMAND = "ziwei"
+ZIWEI_DESCRIPTION = "Ziwei"
+
 
 class ZiweiHandler:
     def __init__(self, chat_model_service: ChatModelService):
@@ -22,7 +25,7 @@ class ZiweiHandler:
         await update.message.reply_chat_action(ChatAction.TYPING)
         question = " ".join(context.args)
         for _, state in self.ziwei_graph_service.run(question):
-            bot_messages = state["bot_messages"]
+            bot_messages = state.get("bot_messages", [])
             if not bot_messages:
                 continue
             await update.message.reply_chat_action(ChatAction.TYPING)

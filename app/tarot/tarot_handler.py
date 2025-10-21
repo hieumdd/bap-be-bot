@@ -7,6 +7,9 @@ from telegram.ext import ContextTypes
 from app.core.chat_model import ChatModelService
 from app.tarot.tarot_graph import TarotGraphService
 
+TAROT_COMMAND = "tarot"
+TAROT_DESCRIPTION = "Tarot"
+
 
 class TarotHandler:
     def __init__(self, chat_model_service: ChatModelService):
@@ -22,7 +25,7 @@ class TarotHandler:
         await update.message.reply_chat_action(ChatAction.TYPING)
         question = " ".join(context.args)
         for _, state in self.tarot_graph_service.run(question):
-            bot_messages = state["bot_messages"]
+            bot_messages = state.get("bot_messages", [])
             if not bot_messages:
                 continue
             await update.message.reply_chat_action(ChatAction.TYPING)
