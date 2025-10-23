@@ -36,7 +36,7 @@ class HandleZiweiBirthchartError:
 
 class DumpZiweiBirthchartImage:
     def __call__(self, state: ZiweiTellingState):
-        return ZiweiTellingState(bot_messages=[ImageMessage("Lá số Tử Vi", state["birthchart"].image)])
+        return ZiweiTellingState(bot_messages=[ImageMessage(state["birthchart"].image, "Lá số Tử Vi")])
 
 
 class MapAnalyzeZiweiArcs:
@@ -99,7 +99,7 @@ class DumpZiweiArcAnalysis:
             fo.write(analysis.analysis)
             fo.write("\n\n")
         fo.seek(0)
-        return ZiweiTellingState(analysis_file=fo, bot_messages=[FileMessage("Luận giải chi tiết", "ziwei.txt", fo)])
+        return ZiweiTellingState(analysis_file=fo, bot_messages=[FileMessage("ziwei.txt", fo, "Luận giải chi tiết")])
 
 
 class MapSummarizeZiwei:

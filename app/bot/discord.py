@@ -37,4 +37,4 @@ if __name__ == "__main__":
     bot.add_command(TarotHandler(chat_model_service).discord_handler())
     bot.add_command(ZiweiHandler(chat_model_service).discord_handler())
 
-    bot.run(settings.discord_bot_token)
+    bot.run(settings.discord_bot_token, log_handler=None)

@@ -22,7 +22,7 @@ class RandomizeTarotCards:
         for tarot_card in random.sample(tarot_cards, self.count):
             tc = tarot_card.variants[random.choice([0, 1])]
             tcs.append(tc)
-        bot_messages = [ImageAlbumMessage(caption=f"{self.count} lá Tarot", images=[tc.image for tc in tcs])]
+        bot_messages = [ImageAlbumMessage(images=[tc.image for tc in tcs])]
         return TarotTellingState(tarot_cards=tcs, bot_messages=bot_messages)
 
 
