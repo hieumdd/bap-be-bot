@@ -50,7 +50,7 @@ class HandleFacialFeaturesExtractionError:
 
 class DumpFacialFeatures:
     def __call__(self, state: FacialTellingState):
-        return FacialTellingState(bot_messages=[TextMessage(f"<pre>{state['facial_features'].model_dump_json()}</pre>")])
+        return FacialTellingState(bot_messages=[TextMessage(state["facial_features"].model_dump_json())])
 
 
 class AnalyzeFacialFeatures(ChatModelNode):
