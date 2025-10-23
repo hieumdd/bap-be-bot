@@ -1,9 +1,9 @@
 from io import StringIO
 from textwrap import dedent
 
-from langchain.messages import AIMessage, SystemMessage
-from langgraph.types import Send
+from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
+from langgraph.types import Send
 
 from app.bot.message import FileMessage, ImageMessage, TextMessage
 from app.core.chat_model import ChatModelService, ChatModelNode
