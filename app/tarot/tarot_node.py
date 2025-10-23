@@ -1,30 +1,43 @@
 import random
 from textwrap import dedent
 
-from langchain.schema import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
+from langgraph.types import Send
 
-from app.core.llm import chat_model
-from app.tarot.tarot_state import TarotState, TarotAnalyzeState
-from app.tarot.tarot_card_model import tarot_cards
-from app.tarot.tarot_telling_card_model import TarotTellingCard
-
-
-def randomize_tarot_cards(state: TarotState):
-    tarot_telling_cards: list[TarotTellingCard] = []
-    for tarot_card in random.sample(tarot_cards, 3):
-        is_reversed = random.choice([True, False])
-        ttc = TarotTellingCard(
-            name=tarot_card.name,
-            is_reversed=is_reversed,
-            meaning=tarot_card.meaning_rev if is_reversed else tarot_card.meaning,
-            image=tarot_card.get_image_rev() if is_reversed else tarot_card.get_image(),
-        )
-        tarot_telling_cards.append(ttc)
-    return {"tarot_telling_cards": tarot_telling_cards}
+from app.bot.message import ImageAlbumMessage, TextMessage
+from app.core.chat_model import ChatModelNode
+from app.tarot.tarot_state import TarotTellingState, TarotCardAnalyzeState
+from app.tarot.tarot_card_model import TarotCardVariant, tarot_cards
 
 
-def analyze_card(state: TarotAnalyzeState):
+class RandomizeTarotCards:
+    count: int
+
+    def __init__(self, count: int = 3):
+        self.count = count
+
+    def __call__(self, _: TarotTellingState):
+        tcs: list[TarotCardVariant] = []
+        for tarot_card in random.sample(tarot_cards, self.count):
+            tc = tarot_card.variants[random.choice([0, 1])]
+            tcs.append(tc)
+        bot_messages = [ImageAlbumMessage(images=[tc.image for tc in tcs])]
+        return TarotTellingState(tarot_cards=tcs, bot_messages=bot_messages)
+
+
+class MapAnalyzeTarotCards:
+    node_id: str
+
+    def __init__(self, node_id: str):
+        self.node_id = node_id
+
+    def __call__(self, state: TarotTellingState):
+        question = state["messages"][0].content
+        return [Send(self.node_id, TarotCardAnalyzeState(question=question, tarot_card=tc)) for tc in state["tarot_cards"]]
+
+
+class AnalyzeTarotCard(ChatModelNode):
     system_message = SystemMessage(
         content=dedent(
             """
@@ -39,30 +52,30 @@ def analyze_card(state: TarotAnalyzeState):
     tarot_human_message = HumanMessagePromptTemplate.from_template(
         dedent(
             """
-            Lá Tarot: {tarot_telling_card_name}
-            Đảo ngược: {tarot_telling_card_is_reversed}
-            Ý nghĩa: {tarot_telling_card_meaning}
+            Lá Tarot: {tarot_card_name}
+            Đảo ngược: {tarot_card_is_reversed}
+            Ý nghĩa: {tarot_card_meaning}
             """
         )
     )
-    question_human_message = HumanMessagePromptTemplate.from_template(
-        "Câu hỏi: {question}"
-    )
+    question_human_message = HumanMessagePromptTemplate.from_template("Câu hỏi: {question}")
     messages = [system_message, tarot_human_message, question_human_message]
     prompt = ChatPromptTemplate.from_messages(messages)
-    chain = prompt | chat_model
-    analysis: AIMessage = chain.invoke(
-        {
-            "question": state["question"],
-            "tarot_telling_card_name": state["tarot_telling_card"].name,
-            "tarot_telling_card_is_reversed": state["tarot_telling_card"].is_reversed,
-            "tarot_telling_card_meaning": state["tarot_telling_card"].meaning,
-        }
-    )
-    return {"messages": [analysis], "analysis": [analysis.content]}
+
+    def __call__(self, state: TarotCardAnalyzeState):
+        chain = self.prompt | self.chat_model_service.chat_model
+        message: AIMessage = chain.invoke(
+            {
+                "question": state["question"],
+                "tarot_card_name": state["tarot_card"].parent.name,
+                "tarot_card_is_reversed": state["tarot_card"].is_reversed,
+                "tarot_card_meaning": state["tarot_card"].meaning,
+            }
+        )
+        return TarotTellingState(messages=[message], bot_messages=[TextMessage(message.content)])
 
 
-def summarize(state: TarotState) -> dict:
+class SummarizeTarotCards(ChatModelNode):
     system_message = SystemMessage(
         content=dedent(
             """
@@ -74,13 +87,12 @@ def summarize(state: TarotState) -> dict:
             """
         )
     )
-    human_question_message = HumanMessagePromptTemplate.from_template(
-        "Câu hỏi: {question}"
-    )
-    analysis_human_messages = [HumanMessage(content=a) for a in state["analysis"]]
-    messages = [system_message, human_question_message, *analysis_human_messages]
-
+    human_question_message = HumanMessagePromptTemplate.from_template("Câu hỏi: {question}")
+    messages = [system_message, human_question_message]
     prompt = ChatPromptTemplate.from_messages(messages)
-    chain = prompt | chat_model
-    summary: AIMessage = chain.invoke({"question": state["messages"][0].content})
-    return {"messages": [summary], "summary": summary.content}
+
+    def __call__(self, state: TarotTellingState):
+        self.prompt.extend([HumanMessage(content=m.content) for m in state["messages"] if isinstance(m, AIMessage)])
+        chain = self.prompt | self.chat_model_service.chat_model
+        message: AIMessage = chain.invoke({"question": state["messages"][0].content})
+        return TarotTellingState(message=[message], bot_messages=[TextMessage(message.content)])

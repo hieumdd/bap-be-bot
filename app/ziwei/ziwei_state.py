@@ -1,38 +1,21 @@
-from io import BytesIO, StringIO
 import operator
 from typing import Annotated, TypedDict
 
-from langchain.schema import AIMessage, HumanMessage
+from app.core.state import BotMessagesState
+from app.ziwei.ziwei_model import ZiweiArcAnalysis, ZiweiBirthchart
 
-from app.ziwei.ziwei_model import ZiweiInput
+
+class ZiweiTellingState(BotMessagesState):
+    birthchart: ZiweiBirthchart
+    analyses: Annotated[list[ZiweiArcAnalysis], operator.add]
+    summaries: Annotated[list[str], operator.add]
 
 
-class ZiweiState(TypedDict):
-    messages: Annotated[list[HumanMessage | AIMessage], operator.add]
+class ZiweiArcAnalysisState(TypedDict):
+    birthchart: ZiweiBirthchart
+    arc: str
 
-    birthchart_input: ZiweiInput | None = None
-    birthchart_image_b64: str | None = None
-    birthchart_image: BytesIO | None = None
 
-    analysis_menh: str | None = None
-    analysis_phu_mau: str | None = None
-    analysis_phuc_duc: str | None = None
-    analysis_dien_trach: str | None = None
-    analysis_quan_loc: str | None = None
-    analysis_no_boc: str | None = None
-    analysis_thien_di: str | None = None
-    analysis_tat_ach: str | None = None
-    analysis_tai_bach: str | None = None
-    analysis_tu_tuc: str | None = None
-    analysis_phu_the: str | None = None
-    analysis_huynh_de: str | None = None
-
-    analysis_file: StringIO | None = None
-
-    summary_positive: str | None = None
-    summary_negative: str | None = None
-    summary_advice: str | None = None
-
-    summaries: list[str] | None = None
-
-    error: str | None = None
+class ZiweiSummaryState(TypedDict):
+    sentiment: str
+    analyses: list[ZiweiArcAnalysis]

@@ -1,18 +1,14 @@
 import operator
 from typing import Annotated, TypedDict
 
-from langchain.schema import AIMessage, HumanMessage
-
-from app.tarot.tarot_telling_card_model import TarotTellingCard
-
-
-class TarotState(TypedDict):
-    messages: Annotated[list[HumanMessage | AIMessage], operator.add]
-    tarot_telling_cards: Annotated[list[TarotTellingCard], operator.add]
-    analysis: Annotated[list[str], operator.add]
-    summary: str
+from app.core.state import BotMessagesState
+from app.tarot.tarot_card_model import TarotCard
 
 
-class TarotAnalyzeState(TypedDict):
+class TarotTellingState(BotMessagesState):
+    tarot_cards: Annotated[list[TarotCard], operator.add]
+
+
+class TarotCardAnalyzeState(TypedDict):
     question: str
-    tarot_telling_card: TarotTellingCard
+    tarot_card: TarotCard
