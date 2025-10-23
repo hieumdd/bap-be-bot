@@ -25,10 +25,10 @@ class TarotCardVariant:
         with path.open("rb") as f:
             image = Image.open(f)
             image.load()
-        buf = BytesIO()
-        image.rotate(180 * int(self.is_reversed)).save(buf, format="JPEG")
-        buf.seek(0)
-        self.image = buf
+        buffer = BytesIO()
+        image.rotate(180 * int(self.is_reversed)).save(buffer, format="JPEG")
+        buffer.seek(0)
+        self.image = buffer
 
 
 class TarotCard:

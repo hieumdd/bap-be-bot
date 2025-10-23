@@ -1,5 +1,4 @@
 import asyncio
-import base64
 
 from discord.ext.commands import Context
 from telegram import Update
@@ -7,6 +6,7 @@ from telegram.constants import ChatAction
 from telegram.ext import ContextTypes, filters
 
 from app.core.chat_model import ChatModelService
+from app.utils.image import ImageBytesToB64
 from app.facial.facial_graph import FacialGraphService
 
 FACIAL_COMMAND = "facial"
@@ -28,8 +28,7 @@ class FacialHandler:
 
         file_ = await photo.get_file()
         image_bytes = await file_.download_as_bytearray()
-        image_url = f"data:image/jpeg;base64,{base64.b64encode(image_bytes).decode()}"
-        print(image_url)
+        image_url = ImageBytesToB64().dump(image_bytes)
 
         await update.message.reply_chat_action(ChatAction.TYPING)
         for _, state in self.facial_graph_service.run(image_url):
