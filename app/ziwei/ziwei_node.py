@@ -99,7 +99,7 @@ class DumpZiweiArcAnalysis:
             fo.write(analysis.analysis)
             fo.write("\n\n")
         fo.seek(0)
-        return ZiweiTellingState(analysis_file=fo, bot_messages=[FileMessage("ziwei.txt", fo, "Luận giải chi tiết")])
+        return ZiweiTellingState(analysis_file=fo, bot_messages=[FileMessage(fo, "ziwei.txt", "Luận giải chi tiết")])
 
 
 class MapSummarizeZiwei:
