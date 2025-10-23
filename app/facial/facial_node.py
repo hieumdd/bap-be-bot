@@ -1,6 +1,6 @@
 from textwrap import dedent
 
-from langchain.schema import SystemMessage, AIMessage
+from langchain.messages import AIMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
 
 from app.bot.message import TextMessage

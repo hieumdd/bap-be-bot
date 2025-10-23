@@ -1,7 +1,7 @@
 import random
 from textwrap import dedent
 
-from langchain.schema import AIMessage, HumanMessage, SystemMessage
+from langchain.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
 from langgraph.types import Send
 

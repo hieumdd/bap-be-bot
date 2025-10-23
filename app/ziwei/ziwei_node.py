@@ -1,7 +1,7 @@
 from io import StringIO
 from textwrap import dedent
 
-from langchain.schema import SystemMessage, AIMessage
+from langchain.messages import AIMessage, SystemMessage
 from langgraph.types import Send
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
 
