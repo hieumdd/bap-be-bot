@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-import io
+from io import BytesIO
 from typing import Protocol, runtime_checkable
 
 import discord
@@ -45,7 +45,7 @@ class TextMessage(BotMessage):
 @dataclass
 class ImageMessage(BotMessage):
     caption: str
-    image: io.BytesIO
+    image: BytesIO
 
     @with_retry()
     async def reply_telegram(self, update):
@@ -60,7 +60,7 @@ class ImageMessage(BotMessage):
 @dataclass
 class ImageAlbumMessage(BotMessage):
     caption: str
-    images: list[io.BytesIO]
+    images: list[BytesIO]
 
     @with_retry()
     async def reply_telegram(self, update):
@@ -81,7 +81,7 @@ class ImageAlbumMessage(BotMessage):
 class FileMessage(BotMessage):
     caption: str
     filename: str
-    file_: io.BytesIO
+    file_: BytesIO
 
     @with_retry()
     async def reply_telegram(self, update):

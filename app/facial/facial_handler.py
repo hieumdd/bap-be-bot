@@ -54,9 +54,9 @@ class FacialHandler:
                 return
 
             attachment = attachments[0]
-            buffer = BytesIO()
-            await attachment.save(buffer)
-            image_url = ImageBytesToB64().dump(buffer.getvalue())
+            with BytesIO() as buffer:
+                await attachment.save(buffer)
+                image_url = ImageBytesToB64().dump(buffer.getvalue())
 
             await ctx.send("⏳ Đang luận giải...")
             for _, state in self.facial_graph_service.run(image_url):
