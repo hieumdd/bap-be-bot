@@ -21,8 +21,8 @@ class ZiweiBirthchart(BaseModel):
 
     error: Annotated[bool, Field(default=False, description="If error, set to True, else False")]
 
-    image_b64: Annotated[str | None, SkipJsonSchema(), Field(default=None)]
-    image: Annotated[BytesIO | None, SkipJsonSchema(), Field(default=None)]
+    image_b64: Annotated[str | None, SkipJsonSchema(), Field(default=None, exclude=True)]
+    image: Annotated[BytesIO | None, SkipJsonSchema(), Field(default=None, exclude=True)]
 
     def model_post_init(self, *args):
         if self.error:
