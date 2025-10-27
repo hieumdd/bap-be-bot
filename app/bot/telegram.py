@@ -31,12 +31,11 @@ async def on_error(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 if __name__ == "__main__":
     settings = Settings()
+    chat_model_service = ChatModelService(settings=settings)
 
     token = settings.telegram_bot_token
     defaults = Defaults(parse_mode=ParseMode.HTML, allow_sending_without_reply=True)
     application = Application.builder().token(token).defaults(defaults).post_init(post_init).build()
-
-    chat_model_service = ChatModelService(settings=settings)
 
     application.add_handler(DonateHandler().telegram_handler())
     application.add_handler(FacialHandler(chat_model_service).telegram_handler())
