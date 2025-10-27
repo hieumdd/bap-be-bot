@@ -25,8 +25,7 @@ async def post_init(application: Application):
 
 
 async def on_error(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    error = context.error
-    logger.error(error)
+    logger.error(context.error)
     await update.message.reply_text("Unknown Error Ocurred")
 
 
@@ -34,7 +33,7 @@ if __name__ == "__main__":
     settings = Settings()
 
     token = settings.telegram_bot_token
-    defaults = Defaults(parse_mode=ParseMode.HTML)
+    defaults = Defaults(parse_mode=ParseMode.HTML, allow_sending_without_reply=True)
     application = Application.builder().token(token).defaults(defaults).post_init(post_init).build()
 
     chat_model_service = ChatModelService(settings=settings)

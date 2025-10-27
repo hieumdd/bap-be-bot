@@ -35,7 +35,7 @@ class TextMessage(BotMessage):
 
     @with_retry()
     async def reply_telegram(self, update):
-        await update.message.reply_text(text=self.text[:4096])
+        await update.message.reply_text(text=self.text[:4096], reply_to_message_id=update.message.id)
 
     @with_retry()
     async def reply_discord(self, ctx):
@@ -49,7 +49,11 @@ class ImageMessage(BotMessage):
 
     @with_retry()
     async def reply_telegram(self, update):
-        await update.message.reply_photo(photo=self.image, caption=self.caption[:4096] if self.caption else None)
+        await update.message.reply_photo(
+            photo=self.image,
+            caption=self.caption[:4096] if self.caption else None,
+            reply_to_message_id=update.message.id,
+        )
 
     @with_retry()
     async def reply_discord(self, ctx):
@@ -65,7 +69,11 @@ class ImageAlbumMessage(BotMessage):
     @with_retry()
     async def reply_telegram(self, update):
         medias = [InputMediaPhoto(image) for image in self.images]
-        await update.message.reply_media_group(media=medias, caption=self.caption[:4096] if self.caption else None)
+        await update.message.reply_media_group(
+            media=medias,
+            caption=self.caption[:4096] if self.caption else None,
+            reply_to_message_id=update.message.id,
+        )
 
     @with_retry()
     async def reply_discord(self, ctx):
@@ -81,8 +89,12 @@ class FileMessage(BotMessage):
 
     @with_retry()
     async def reply_telegram(self, update):
-        caption = self.caption[:4096] if self.caption else None
-        await update.message.reply_document(document=self.file_, filename=self.filename, caption=caption)
+        await update.message.reply_document(
+            document=self.file_,
+            filename=self.filename,
+            caption=self.caption[:4096] if self.caption else None,
+            reply_to_message_id=update.message.id,
+        )
 
     @with_retry()
     async def reply_discord(self, ctx):
