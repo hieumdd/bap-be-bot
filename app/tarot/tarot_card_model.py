@@ -21,12 +21,10 @@ class TarotCardVariant:
         self.is_reversed = is_reversed
         self.meaning = meaning
 
-        path = Path(__file__).parent / image_dir / self.parent.image_path
-        with path.open("rb") as f:
-            image = Image.open(f)
-            image.load()
+        image = Image.open(Path(__file__).parent / image_dir / self.parent.image_path)
+        image.load()
         buffer = BytesIO()
-        image.rotate(180 * int(self.is_reversed)).save(buffer, format="JPEG")
+        image.rotate(180 * int(self.is_reversed)).save(buffer, format="PNG")
         buffer.seek(0)
         self.image = buffer
 
