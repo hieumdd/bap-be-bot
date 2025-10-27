@@ -3,7 +3,6 @@ from io import BytesIO
 
 from discord.ext.commands import Context, command
 from telegram import Update
-from telegram.constants import ChatAction
 from telegram.ext import ContextTypes, MessageHandler, filters
 
 from app.core.chat_model import ChatModelService
@@ -32,12 +31,10 @@ class FacialHandler:
             image_bytes = await file_.download_as_bytearray()
             image_url = ImageBytesToB64().dump(image_bytes)
 
-            await update.message.reply_chat_action(ChatAction.TYPING)
             for _, state in self.facial_graph_service.run(image_url):
                 bot_messages = state.get("bot_messages", [])
                 if not bot_messages:
                     continue
-                await update.message.reply_chat_action(ChatAction.TYPING)
                 bot_message = bot_messages[-1]
                 await bot_message.reply_telegram(update)
                 await asyncio.sleep(0.25)

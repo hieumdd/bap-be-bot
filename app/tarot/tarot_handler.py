@@ -2,7 +2,6 @@ import asyncio
 
 from discord.ext.commands import Context, command
 from telegram import Update
-from telegram.constants import ChatAction
 from telegram.ext import CommandHandler, ContextTypes
 
 from app.core.chat_model import ChatModelService
@@ -25,13 +24,11 @@ class TarotHandler:
                 await update.message.reply_text("Empty Query")
                 return
 
-            await update.message.reply_chat_action(ChatAction.TYPING)
             question = " ".join(context.args)
             for _, state in self.tarot_graph_service.run(question):
                 bot_messages = state.get("bot_messages", [])
                 if not bot_messages:
                     continue
-                await update.message.reply_chat_action(ChatAction.TYPING)
                 bot_message = bot_messages[-1]
                 await bot_message.reply_telegram(update)
                 await asyncio.sleep(0.25)

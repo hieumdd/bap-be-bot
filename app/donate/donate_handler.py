@@ -1,6 +1,5 @@
 from discord.ext.commands import Context, command
 from telegram import Update
-from telegram.constants import ChatAction
 from telegram.ext import CommandHandler, ContextTypes
 
 from app.donate.donate_service import DonateService
@@ -16,7 +15,6 @@ class DonateHandler:
 
     def telegram_handler(self):
         async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-            await update.message.reply_chat_action(ChatAction.TYPING)
             message = self.donate_service.return_donation_message()
             await message.reply_telegram(update)
 
