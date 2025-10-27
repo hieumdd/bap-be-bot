@@ -5,6 +5,7 @@ from telegram.ext import Application, Defaults, ContextTypes
 from app.core.logger import get_logger
 from app.core.settings import Settings
 from app.core.chat_model import ChatModelService
+from app.donate.donate_handler import DonateHandler
 from app.facial.facial_handler import FacialHandler
 from app.tarot.tarot_handler import TarotHandler
 from app.ziwei.ziwei_handler import ZiweiHandler
@@ -38,6 +39,7 @@ if __name__ == "__main__":
 
     chat_model_service = ChatModelService(settings=settings)
 
+    application.add_handler(DonateHandler().telegram_handler())
     application.add_handler(FacialHandler(chat_model_service).telegram_handler())
     application.add_handler(TarotHandler(chat_model_service).telegram_handler())
     application.add_handler(ZiweiHandler(chat_model_service).telegram_handler())
