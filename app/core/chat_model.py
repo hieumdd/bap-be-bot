@@ -5,7 +5,7 @@ from app.core.settings import Settings
 
 
 class ChatModelService:
-    def __init__(self, model="gemini-2.0-flash", temperature=1.0, settings: Settings | None = None):
+    def __init__(self, settings: Settings, model="gemini-2.0-flash", temperature=1.0):
         settings = settings or Settings()
         safety_settings = {
             HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
