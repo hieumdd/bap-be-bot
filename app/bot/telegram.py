@@ -16,6 +16,7 @@ logger = get_logger(__name__)
 
 async def post_init(application: Application):
     commands = [
+        DonateHandler.syntax(),
         FacialHandler.syntax(),
         TarotHandler.syntax(),
         ZiweiHandler.syntax(),
