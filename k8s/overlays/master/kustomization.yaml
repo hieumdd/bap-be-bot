@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: bap-be-bot-master
+
+resources:
+  - ../../base
+
+secretGenerator:
+  - name: bap-be-bot-secrets
+    envs:
+      - .env
+    behavior: replace
+    type: Opaque
+
+images:
+  - name: hieumdd/bap-be-bot
+    newTag: master
+
+# The image can be customized at apply time using:
+# kustomize edit set image hieumdd/bap-be-bot:latest=asia-docker.pkg.dev/hieumdd/bap-be-bot:new-tag
+# OR
+# kubectl apply -k . --kustomize-image=hieumdd/bap-be-bot:latest=asia-docker.pkg.dev/hieumdd/bap-be-bot:new-tag

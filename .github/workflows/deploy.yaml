@@ -1,0 +1,58 @@
+name: Deploy to Kubernetes
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - master
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+env:
+  ENVIRONMENT: ${{ github.event.inputs.environment }}
+  GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+  GKE_CLUSTER: ${{ vars.GKE_CLUSTER }}
+  GKE_CLUSTER_LOCATION: ${{ vars.GKE_CLUSTER_LOCATION }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    env:
+      NAMESPACE: bap-be-bot-${{ github.event.inputs.environment }}
+      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ env.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - uses: google-github-actions/get-gke-credentials@v1
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER }}
+          location: ${{ env.GKE_CLUSTER_LOCATION }}
+
+      - run: |
+          cd k8s/overlays/${{ github.event.inputs.environment }}
+
+          echo "GOOGLE_API_KEY=${GOOGLE_API_KEY}" > .env
+          echo "TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}" >> .env
+          echo "DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}" >> .env
+
+          kubectl kustomize . | kubectl apply -f -
+
+      - run: kubectl rollout restart deployment -n ${{ env.NAMESPACE }} --selector=app=bap-be-bot
+
+      - run: kubectl rollout status deployment -n ${{ env.NAMESPACE }} --selector=app=bap-be-bot

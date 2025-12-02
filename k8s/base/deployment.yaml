@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bap-be-bot-discord
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      component: discord
+  template:
+    metadata:
+      labels:
+        component: discord
+    spec:
+      containers:
+        - name: discord-bot
+          imagePullPolicy: Always
+          command: ["python", "-m", "app.bot.discord"]
+          envFrom:
+            - secretRef:
+                name: bap-be-bot-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bap-be-bot-telegram
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      component: telegram
+  template:
+    metadata:
+      labels:
+        component: telegram
+    spec:
+      containers:
+        - name: telegram-bot
+          imagePullPolicy: Always
+          command: ["python", "-m", "app.bot.telegram"]
+          envFrom:
+            - secretRef:
+                name: bap-be-bot-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
