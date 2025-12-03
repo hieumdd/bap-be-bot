@@ -15,7 +15,7 @@ on:
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 env:
-  ENVIRONMENT: ${{ github.event.inputs.environment }}
+  ENVIRONMENT: ${{ github.ref_name || github.event.inputs.environment }}
   GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
   GKE_CLUSTER: ${{ vars.GKE_CLUSTER }}
   GKE_CLUSTER_LOCATION: ${{ vars.GKE_CLUSTER_LOCATION }}
@@ -23,9 +23,9 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment }}
+    environment: ${{ github.ref_name || github.event.inputs.environment }}
     env:
-      NAMESPACE: bap-be-bot-${{ github.event.inputs.environment }}
+      NAMESPACE: bap-be-bot-${{ env.ENVIRONMENT }}
       GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
@@ -45,7 +45,7 @@ jobs:
           location: ${{ env.GKE_CLUSTER_LOCATION }}
 
       - run: |
-          cd k8s/overlays/${{ github.event.inputs.environment }}
+          cd k8s/overlays/${{ env.ENVIRONMENT }}
 
           echo "GOOGLE_API_KEY=${GOOGLE_API_KEY}" > .env
           echo "TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}" >> .env
@@ -53,6 +53,6 @@ jobs:
 
           kubectl kustomize . | kubectl apply -f -
 
-      - run: kubectl rollout restart deployment -n ${{ env.NAMESPACE }} --selector=app=bap-be-bot
+      - run: kubectl rollout restart deployment -n ${{ env.NAMESPACE }}
 
-      - run: kubectl rollout status deployment -n ${{ env.NAMESPACE }} --selector=app=bap-be-bot
+      - run: kubectl rollout status deployment -n ${{ env.NAMESPACE }}

@@ -14,5 +14,5 @@ secretGenerator:
     type: Opaque
 
 images:
-  - name: hieumdd/bap-be-bot
+  - name: asia-docker.pkg.dev/hieumdd/bap-be-bot
     newTag: dev

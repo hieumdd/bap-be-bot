@@ -7,12 +7,9 @@ resources:
   - secret.yaml
   - deployment.yaml
 
-commonLabels:
-  app: bap-be-bot
-  app.kubernetes.io/name: bap-be-bot
-  app.kubernetes.io/part-of: bap-be-bot
-
-images:
-  - name: hieumdd/bap-be-bot
-    newName: asia-docker.pkg.dev/hieumdd/bap-be-bot
-    newTag: latest
+labels:
+  - includeSelectors: true
+    pairs:
+      app: bap-be-bot
+      app.kubernetes.io/name: bap-be-bot
+      app.kubernetes.io/part-of: bap-be-bot

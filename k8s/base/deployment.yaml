@@ -14,6 +14,7 @@ spec:
     spec:
       containers:
         - name: discord-bot
+          image: asia-docker.pkg.dev/hieumdd/bap-be-bot
           imagePullPolicy: Always
           command: ["python", "-m", "app.bot.discord"]
           envFrom:
@@ -43,6 +44,7 @@ spec:
     spec:
       containers:
         - name: telegram-bot
+          image: asia-docker.pkg.dev/hieumdd/bap-be-bot
           imagePullPolicy: Always
           command: ["python", "-m", "app.bot.telegram"]
           envFrom:
