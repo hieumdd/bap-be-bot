@@ -11,11 +11,13 @@ on:
         options:
           - dev
           - master
-  workflow_call:
-    inputs:
-      environment:
-        required: true
-        type: string
+  workflow_run:
+    workflows:
+      - Build Docker Image
+    types:
+      - completed
+    branches:
+      - master
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 

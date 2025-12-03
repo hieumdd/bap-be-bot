@@ -48,11 +48,3 @@ jobs:
           provenance: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  deploy:
-    if: ${{ github.ref_name || github.event.inputs.environment }} == "master"
-    needs: build
-    uses: ./.github/workflows/deploy.yaml
-    with:
-      environment: ${{ github.ref_name || github.event.inputs.environment }}
-    secrets: inherit
