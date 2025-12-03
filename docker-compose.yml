@@ -1,13 +1,13 @@
 services:
     base:
         platform: ${PLATFORM:-linux/arm64}
-        image: hieumdd/bap-be-bot
+        image: asia-docker.pkg.dev/hieumdd/docker-1/bap-be-bot${TAG:-dev}
         build: .
         container_name: bap-be-bot-base
         command: ["echo", "Build Completed"]
 
     telegram-bot:
-        image: hieumdd/bap-be-bot
+        image: asia-docker.pkg.dev/hieumdd/docker-1/bap-be-bot${TAG:-dev}
         depends_on:
             - base
         container_name: bap-be-bot-telegram
@@ -17,7 +17,7 @@ services:
             - bap-be-bot
 
     discord-bot:
-        image: hieumdd/bap-be-bot
+        image: asia-docker.pkg.dev/hieumdd/docker-1/bap-be-bot${TAG:-dev}
         depends_on:
             - base
         container_name: bap-be-bot-discord
@@ -25,19 +25,6 @@ services:
         env_file: .env
         networks:
             - bap-be-bot
-
-
-    watchtower:
-        image: containrrr/watchtower
-        container_name: watchtower
-        restart: always
-        volumes:
-            - /var/run/docker.sock:/var/run/docker.sock
-            - ~/.docker/config.json:/config.json:ro
-        environment:
-            - WATCHTOWER_CLEANUP=true
-            - WATCHTOWER_DEBUG=true
-            - WATCHTOWER_POLL_INTERVAL=60
 
 networks:
     bap-be-bot:

@@ -11,6 +11,11 @@ on:
         options:
           - dev
           - master
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -25,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name || github.event.inputs.environment }}
     env:
-      NAMESPACE: bap-be-bot-${{ env.ENVIRONMENT }}
+      NAMESPACE: bap-be-bot-${{ github.ref_name || github.event.inputs.environment }}
       GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}

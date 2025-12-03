@@ -5,14 +5,14 @@ namespace: bap-be-bot-dev
 
 resources:
   - ../../base
+  - namespace.yaml
 
 secretGenerator:
   - name: bap-be-bot-secrets
     envs:
       - .env
-    behavior: replace
     type: Opaque
 
 images:
-  - name: asia-docker.pkg.dev/hieumdd/bap-be-bot
+  - name: asia-docker.pkg.dev/hieumdd/docker-1/bap-be-bot
     newTag: dev

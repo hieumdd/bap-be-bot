@@ -5,12 +5,12 @@ namespace: bap-be-bot-master
 
 resources:
   - ../../base
+  - namespace.yaml
 
 secretGenerator:
   - name: bap-be-bot-secrets
     envs:
       - .env
-    behavior: replace
     type: Opaque
 
 images:

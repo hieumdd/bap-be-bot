@@ -21,13 +21,12 @@ concurrency: ${{ github.ref }}-${{ github.workflow }}
 env:
   ENVIRONMENT: ${{ github.ref_name || github.event.inputs.environment }}
   GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+  ARTIFACT_REGISTRY_BASE_PATH: asia-docker.pkg.dev
+  IMAGE_BASE_NAME: asia-docker.pkg.dev/hieumdd/docker-1/bap-be-bot
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      ARTIFACT_REGISTRY_BASE_PATH: ${{ vars.ARTIFACT_REGISTRY_BASE_PATH }}
-      IMAGE_BASE_NAME: ${{ vars.IMAGE_BASE_NAME }}
     steps:
       - uses: actions/checkout@v6
 
@@ -49,3 +48,11 @@ jobs:
           provenance: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy:
+    if: ${{ github.ref_name || github.event.inputs.environment }} == "master"
+    needs: build
+    uses: ./.github/workflows/deploy.yaml
+    with:
+      environment: ${{ github.ref_name || github.event.inputs.environment }}
+    secrets: inherit
