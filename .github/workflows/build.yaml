@@ -1,0 +1,41 @@
+name: Build Docker Image
+
+on:
+  push:
+    branches:
+      - dev
+      - master
+  workflow_dispatch:
+
+concurrency: ${{ github.ref }}-${{ github.workflow }}
+
+env:
+  ENVIRONMENT: ${{ github.ref_name }}
+  GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+  ARTIFACT_REGISTRY_BASE_PATH: asia-docker.pkg.dev
+  IMAGE_BASE_NAME: asia-docker.pkg.dev/hieumdd/docker-1/bap-be-bot
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ env.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - run: gcloud auth configure-docker ${{ env.ARTIFACT_REGISTRY_BASE_PATH }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          tags: ${{ env.IMAGE_BASE_NAME }}:${{ env.ENVIRONMENT }}
+          target: production
+          push: true
+          provenance: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
