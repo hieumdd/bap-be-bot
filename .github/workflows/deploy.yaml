@@ -23,7 +23,7 @@ concurrency: ${{ github.workflow }}-${{ github.ref }}
 env:
   GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
   GKE_CLUSTER: cluster-1
-  GKE_CLUSTER_LOCATION: asia-southeast1-a
+  GKE_CLUSTER_LOCATION: asia-southeast1
 
 jobs:
   deploy:
