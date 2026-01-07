@@ -12,8 +12,8 @@ concurrency: ${{ github.ref }}-${{ github.workflow }}
 env:
   ENVIRONMENT: ${{ github.ref_name }}
   GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-  ARTIFACT_REGISTRY_BASE_PATH: asia-docker.pkg.dev
-  IMAGE_BASE_NAME: asia-docker.pkg.dev/hieumdd/docker-1/bap-be-bot
+  ARTIFACT_REGISTRY_BASE_PATH: ${{ vars.ARTIFACT_REGISTRY_BASE_PATH }}
+  IMAGE_BASE_NAME: ${{ vars.IMAGE_BASE_NAME }}
 
 jobs:
   build:
