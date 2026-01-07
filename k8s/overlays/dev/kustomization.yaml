@@ -8,11 +8,10 @@ resources:
   - namespace.yaml
 
 secretGenerator:
-  - name: bap-be-bot-secrets
-    envs:
+  - envs:
       - .env
+    name: secrets
     type: Opaque
 
 images:
-  - name: us-central1-docker.pkg.dev/hieumdd/docker-1/bap-be-bot
-    newTag: dev
+  - name: bap-be-bot

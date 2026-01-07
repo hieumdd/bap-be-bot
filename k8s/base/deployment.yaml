@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: bap-be-bot-discord
+  name: discord-bot
 spec:
   replicas: 1
   selector:
@@ -14,12 +14,12 @@ spec:
     spec:
       containers:
         - name: discord-bot
-          image: us-central1-docker.pkg.dev/hieumdd/docker-1/bap-be-bot
+          image: bap-be-bot
           imagePullPolicy: Always
           command: ["python", "-m", "app.bot.discord"]
           envFrom:
             - secretRef:
-                name: bap-be-bot-secrets
+                name: secrets
           resources:
             requests:
               cpu: 100m
@@ -31,7 +31,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: bap-be-bot-telegram
+  name: telegram-bot
 spec:
   replicas: 1
   selector:
@@ -44,12 +44,12 @@ spec:
     spec:
       containers:
         - name: telegram-bot
-          image: us-central1-docker.pkg.dev/hieumdd/docker-1/bap-be-bot
+          image: bap-be-bot
           imagePullPolicy: Always
           command: ["python", "-m", "app.bot.telegram"]
           envFrom:
             - secretRef:
-                name: bap-be-bot-secrets
+                name: secrets
           resources:
             requests:
               cpu: 100m
