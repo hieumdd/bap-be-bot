@@ -39,3 +39,11 @@ jobs:
           provenance: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build
+    if: github.ref_name == 'master'
+    uses: ./.github/workflows/deploy.yaml
+    with:
+      environment: master
+    secrets: inherit
