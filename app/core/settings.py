@@ -8,3 +8,5 @@ class Settings(BaseSettings):
 
     telegram_bot_token: str
     discord_bot_token: str
+
+    mongodb_uri: str

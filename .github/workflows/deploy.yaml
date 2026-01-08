@@ -35,6 +35,7 @@ jobs:
       GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+      MONGODB_URI: ${{ secrets.MONGODB_URI }}
 
     steps:
       - uses: actions/checkout@v6
@@ -50,6 +51,7 @@ jobs:
           echo "GOOGLE_API_KEY=${GOOGLE_API_KEY}" > .env
           echo "TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}" >> .env
           echo "DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}" >> .env
+          echo "MONGODB_URI=${MONGODB_URI}" >> .env
 
           kustomize edit set image bap-be-bot=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.ENVIRONMENT }}
           kubectl kustomize . | kubectl apply -f -
