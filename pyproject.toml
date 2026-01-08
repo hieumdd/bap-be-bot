@@ -10,6 +10,7 @@ dependencies = [
     "langgraph>=1.0.1",
     "pillow>=11.1.0",
     "pydantic-settings>=2.8.1",
+    "pymongo>=4.16.0",
     "python-telegram-bot>=21.10",
     "tenacity>=9.0.0",
 ]
