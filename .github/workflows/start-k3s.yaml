@@ -7,6 +7,10 @@ on:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
+env:
+  K3S_ZONE: ${{ vars.K3S_ZONE }}
+  K3S_INSTANCE: ${{ vars.K3S_INSTANCE }}
+
 jobs:
   start:
     runs-on: ubuntu-latest
@@ -15,8 +19,8 @@ jobs:
 
       - uses: google-github-actions/auth@v3
         with:
-          credentials_json: ${{ env.GCP_SA_KEY }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - uses: google-github-actions/setup-gcloud@v3
 
-      - run: gcloud compute ssh --zone ${{ env.K3S_ZONE }} ${{ env.K3S_INSTANCE }}
+      - run: gcloud compute instances start --zone ${{ env.K3S_ZONE }} ${{ env.K3S_INSTANCE }}
