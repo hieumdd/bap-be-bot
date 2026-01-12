@@ -11,9 +11,8 @@ class TestZiwei:
 
     @pytest.fixture
     def question(self):
-        return "1998-10-31 lúc 21h nam mạng"
+        return "1997-11-19 23:35 nữ mạng"
 
     def test_graph(self, ziwei_graph_service: ZiweiGraphService, question: str):
         for node, state in ziwei_graph_service.run(question):
             print(f">>> {node}")
-            print(state)
